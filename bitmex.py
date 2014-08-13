@@ -79,7 +79,7 @@ class BitMEX(object):
     def funds(self):
         """Get your current balance."""
         userResponse = self._curl_bitmex(api="user")
-        return userResponse['margin']['marginBalance'] / float(constants.XBt_TO_XBT) # XBT, not XBt
+        return userResponse['margin']
 
     @authentication_required
     def buy(self, quantity, price):

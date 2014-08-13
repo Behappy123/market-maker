@@ -11,6 +11,15 @@ import constants
 def timestamp_string():
     return "["+datetime.now().strftime("%I:%M:%S %p")+"]"
 
+def XBt_to_XBT(XBt):
+    return float(XBt) / constants.XBt_TO_XBT
+
+def cost(instrument, quantity, price):
+    return instrument["multiplier"] * price * quantity
+
+def margin(instrument, quantity, price):
+    return instrument["multiplier"] * price * quantity * instrument["initMargin"]
+
 class ExchangeInterface:
     def __init__(self, dry_run=False):
         self.dry_run = dry_run
@@ -50,18 +59,20 @@ class ExchangeInterface:
     def get_ticker(self):
         ticker = self.bitmex.ticker_data()
 
+        mid = (float(ticker["buy"]) + float(ticker["sell"])) / 2
+
         return {"last": float(ticker["last"]), "buy": float(ticker["buy"]), "sell": float(ticker["sell"]), \
-            "symbol": self.symbol}
+            "symbol": self.symbol, "mid": mid}
 
     def get_trade_data(self):
         if self.dry_run:
-            xbt = float(settings.DRY_BTC)
+            margin = {'marginBalance': float(settings.DRY_BTC), 'availableFunds': float(settings.DRY_BTC)}
             orders = []
         else:
             while True:
                 try:
                     orders = self.bitmex.open_orders()
-                    xbt = self.bitmex.funds()
+                    margin = self.bitmex.funds()
                     sleep(1)
                 except URLError as e:
                     print e.reason
@@ -72,7 +83,7 @@ class ExchangeInterface:
                 else:
                     break
 
-        return {"xbt": xbt, "orders": orders}
+        return {"margin": margin, "orders": orders}
 
     def place_order(self, price, quantity, order_type):
         if settings.DRY_RUN:
@@ -110,8 +121,8 @@ class OrderManager:
         ticker = self.get_ticker()
    
         trade_data = self.exchange.get_trade_data()
-        self.start_xbt = trade_data["xbt"]
-        print timestamp_string(), "Current XBT Balance: %.6f" % self.start_xbt
+        self.start_XBt = trade_data["margin"]["marginBalance"]
+        print timestamp_string(), "Current XBT Balance: %.6f" % XBt_to_XBT(self.start_XBt)
 
         # Sanity check:
         if self.get_position(-1) >= ticker["sell"] or self.get_position(1) <= ticker["buy"]:
@@ -130,14 +141,12 @@ class OrderManager:
 
     def get_ticker(self):
         ticker = self.exchange.get_ticker()
-        self.start_position_buy = ticker["buy"]
-        self.start_position_sell = ticker["sell"]
+        self.start_position = ticker["mid"]
         print timestamp_string(), 'Current Ticker:', ticker
         return ticker
 
     def get_position(self, index):
-        start_position = self.start_position_sell if index > 0 else self.start_position_buy
-        return round(start_position * (1+settings.INTERVAL)**index, constants.USD_DECIMAL_PLACES)
+        return round(self.start_position * (1+settings.INTERVAL)**index, constants.USD_DECIMAL_PLACES)
 
     def place_order(self, index, order_type):
         position = self.get_position(index)
@@ -146,15 +155,20 @@ class OrderManager:
         price = position
 
         order = self.exchange.place_order(price, quantity, order_type)
-        print timestamp_string(), order_type.capitalize() + ":", quantity, \
-            "@", price, "id:", order["orderID"], \
-            "value: %.6f XBT" % (self.instrument["multiplier"] * price * quantity / constants.XBt_TO_XBT), \
-            "margin: %.6f XBT" % (self.instrument["multiplier"] * price * quantity * self.instrument["initMargin"] / constants.XBt_TO_XBT)
+        if order['ordStatus'] != "Rejected":
+            print timestamp_string(), order_type.capitalize() + ":", quantity, \
+                "@", price, "id:", order["orderID"], \
+                "value: %.6f XBT" % XBt_to_XBT(cost(self.instrument, price, quantity)), \
+                "margin: %.6f XBT" % XBt_to_XBT(margin(self.instrument, price, quantity))
+        else:
+            print "Order rejected: " + order['ordRejReason']
+            sleep(5) # don't go crazy
 
         self.orders[index] = order
 
     def check_orders(self):
         trade_data = self.exchange.get_trade_data()
+
         self.get_ticker();
         order_ids = [o["orderID"] for o in trade_data["orders"]]
         old_orders = self.orders.copy()
@@ -201,8 +215,8 @@ class OrderManager:
                 self.place_order(high_index+i, "Sell")
 
         if print_status:
-            xbt = trade_data["xbt"]
-            print "Profit: %.6f" % (xbt - self.start_xbt), "XBT. Run Time:", datetime.now() - self.start_time
+            marginBalance = trade_data["margin"]["marginBalance"]
+            print "Profit: %.6f" % XBt_to_XBT(marginBalance - self.start_XBt), "XBT. Run Time:", datetime.now() - self.start_time
 
 
     def run_loop(self):
