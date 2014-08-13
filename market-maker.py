@@ -14,11 +14,11 @@ def timestamp_string():
 class ExchangeInterface:
     def __init__(self, dry_run=False):
         self.dry_run = dry_run
-        self.bitmex = bitmex.BitMEX(base_url=settings.BASE_URL, symbol=settings.SYMBOL)
+        self.bitmex = bitmex.BitMEX(base_url=settings.BASE_URL, symbol=settings.SYMBOL, login=settings.LOGIN, password=settings.PASSWORD)
 
-    def authenticate(self, login, password):
+    def authenticate(self):
         if not self.dry_run:
-            self.bitmex.authenticate(login, password)
+            self.bitmex.authenticate()
 
     def cancel_all_orders(self):
         if self.dry_run:
@@ -94,7 +94,7 @@ class OrderManager:
             print "Order Manager initializing, connecting to BitMEX. Dry run disabled, executing real trades."
 
         self.exchange = ExchangeInterface(settings.DRY_RUN)
-        self.exchange.authenticate(settings.LOGIN, settings.PASSWORD)
+        self.exchange.authenticate()
         self.start_time = datetime.now()
         self.instrument = self.exchange.get_instrument()
         self.reset()
@@ -103,9 +103,8 @@ class OrderManager:
         self.exchange.cancel_all_orders()
         self.orders = {}
 
-        ticker = self.exchange.get_ticker()
-        self.start_position_buy = ticker["buy"]
-        self.start_position_sell = ticker["sell"]
+        ticker = self.get_ticker()
+   
         trade_data = self.exchange.get_trade_data()
         self.start_xbt = trade_data["xbt"]
         print timestamp_string(), "Current XBT Balance: %.6f" % self.start_xbt
@@ -124,6 +123,12 @@ class OrderManager:
 
         if settings.DRY_RUN:
             exit()
+
+    def get_ticker(self):
+        ticker = self.exchange.get_ticker()
+        self.start_position_buy = ticker["buy"]
+        self.start_position_sell = ticker["sell"]
+        return ticker
 
     def get_position(self, index):
         start_position = self.start_position_sell if index > 0 else self.start_position_buy
@@ -144,6 +149,7 @@ class OrderManager:
 
     def check_orders(self):
         trade_data = self.exchange.get_trade_data()
+        self.get_ticker();
         order_ids = [o["orderID"] for o in trade_data["orders"]]
         old_orders = self.orders.copy()
         print_status = False
