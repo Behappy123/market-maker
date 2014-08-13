@@ -128,6 +128,7 @@ class OrderManager:
         ticker = self.exchange.get_ticker()
         self.start_position_buy = ticker["buy"]
         self.start_position_sell = ticker["sell"]
+        print timestamp_string(), 'Current Ticker:', ticker
         return ticker
 
     def get_position(self, index):
@@ -143,7 +144,8 @@ class OrderManager:
         order = self.exchange.place_order(price, quantity, order_type)
         print timestamp_string(), order_type.capitalize() + ":", quantity, \
             "@", price, "id:", order["orderID"], \
-            "cost: %.6f XBT" % (self.instrument["multiplier"] * price * quantity / constants.XBt_TO_XBT)
+            "value: %.6f XBT" % (self.instrument["multiplier"] * price * quantity / constants.XBt_TO_XBT), \
+            "margin: %.6f XBT" % (self.instrument["multiplier"] * price * quantity * self.instrument["initMargin"] / constants.XBt_TO_XBT)
 
         self.orders[index] = order
 
@@ -154,26 +156,29 @@ class OrderManager:
         old_orders = self.orders.copy()
         print_status = False
 
+        # If an order fills, reset it
         for index, order in old_orders.iteritems():
             if order["orderID"] not in order_ids:
                 print "Order filled, id: %s, price: %.2f, quantity: %d" % (order["orderID"], order["price"], \
                     order["orderQty"])
                 del self.orders[index]
                 if order["side"] == "Buy":
-                    self.place_order(index + 1, "Sell")
+                    self.place_order(index, "Sell")
                 else:
-                    self.place_order(index - 1, "Buy")
+                    self.place_order(-index, "Buy")
                 print_status = True
 
         num_buys = 0
         num_sells = 0
 
+        # Count our buys & sells
         for order in self.orders.itervalues():
             if order["side"] == "Buy":
                 num_buys += 1
             else:
                 num_sells += 1
 
+        # If we're missing buys, refill
         if num_buys < settings.ORDER_PAIRS:
             low_index = min(self.orders.keys())
             if num_buys == 0:
@@ -182,6 +187,7 @@ class OrderManager:
             for i in range(1, settings.ORDER_PAIRS - num_buys + 1):
                 self.place_order(low_index-i, "Buy")
 
+        # If we're missing sells, refill
         if num_sells < settings.ORDER_PAIRS:
             high_index = max(self.orders.keys())
             if num_sells == 0:
