@@ -121,8 +121,8 @@ class BitMEX(object):
     def open_orders(self):
         """Get open orders."""
 
-        api = "order/myOpenOrders"
-        return self._curl_bitmex(api=api)
+        api = "order/myOrders"
+        return self._curl_bitmex(api=api, query={'filter': json.dumps({'ordStatus.isTerminated': False, 'symbol': self.symbol})})
 
     @authentication_required
     def cancel(self, orderID):
@@ -164,5 +164,7 @@ class BitMEX(object):
                 sleep(1)
                 self.authenticate()
                 return self._curl_bitmex(api, query, postdict, timeout)
+            else:
+                print "Unhandled Error:", e
         return json.loads(response.read())
 
