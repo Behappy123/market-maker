@@ -14,7 +14,8 @@ def timestamp_string():
 class ExchangeInterface:
     def __init__(self, dry_run=False):
         self.dry_run = dry_run
-        self.bitmex = bitmex.BitMEX(base_url=settings.BASE_URL, symbol=settings.SYMBOL, login=settings.LOGIN, password=settings.PASSWORD)
+        self.symbol = sys.argv[1] if len(sys.argv) > 1 else settings.SYMBOL
+        self.bitmex = bitmex.BitMEX(base_url=settings.BASE_URL, symbol=self.symbol, login=settings.LOGIN, password=settings.PASSWORD)
 
     def authenticate(self):
         if not self.dry_run:
@@ -49,7 +50,8 @@ class ExchangeInterface:
     def get_ticker(self):
         ticker = self.bitmex.ticker_data()
 
-        return {"last": float(ticker["last"]), "buy": float(ticker["buy"]), "sell": float(ticker["sell"])}
+        return {"last": float(ticker["last"]), "buy": float(ticker["buy"]), "sell": float(ticker["sell"]), \
+            "symbol": self.symbol}
 
     def get_trade_data(self):
         if self.dry_run:
@@ -93,7 +95,9 @@ class OrderManager:
         else:
             print "Order Manager initializing, connecting to BitMEX. Dry run disabled, executing real trades."
 
+
         self.exchange = ExchangeInterface(settings.DRY_RUN)
+        print "Using symbol %s." % self.exchange.symbol;
         self.exchange.authenticate()
         self.start_time = datetime.now()
         self.instrument = self.exchange.get_instrument()

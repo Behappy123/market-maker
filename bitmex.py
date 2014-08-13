@@ -166,5 +166,7 @@ class BitMEX(object):
                 return self._curl_bitmex(api, query, postdict, timeout)
             else:
                 print "Unhandled Error:", e
+                print "Endpoint was: " + api
+                exit(1)
         return json.loads(response.read())
 
