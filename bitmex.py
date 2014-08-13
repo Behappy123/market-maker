@@ -1,14 +1,17 @@
 import urllib, urllib2
+from time import sleep
 import json
 import constants
 
 # https://www.bitmex.com/api/explorer/
 
 class BitMEX(object):
-    def __init__(self, base_url=None, symbol=None):
+    def __init__(self, base_url=None, symbol=None, login=None, password=None):
         self.base_url = base_url
         self.symbol = symbol
         self.token = None
+        self.login = login
+        self.password = password
 
 # Public methods
     def ticker_data(self):
@@ -58,9 +61,9 @@ class BitMEX(object):
         }
 
 # Authentication required methods
-    def authenticate(self, email, password):
+    def authenticate(self):
         """Set BitMEX authentication information"""
-        loginResponse = self._curl_bitmex(api="user/login", postdict={'email': email, 'password': password})
+        loginResponse = self._curl_bitmex(api="user/login", postdict={'email': self.login, 'password': self.password})
         self.token = loginResponse['id']
 
     def authentication_required(function):
@@ -148,6 +151,18 @@ class BitMEX(object):
         if self.token:
             request.add_header('accessToken', self.token)
 
-        response = urllib2.urlopen(request, timeout=timeout)
+        try:
+            response = urllib2.urlopen(request, timeout=timeout)
+        except urllib2.HTTPError, e:
+            # re-auth and re-run this curl on 401
+            if e.code == 401:
+                if self.token == None:
+                    print postdict
+                    print "Login information incorrect, please check and restart."
+                    exit(1)
+                print "Token expired, reauthenticating..."
+                sleep(1)
+                self.authenticate()
+                return self._curl_bitmex(api, query, postdict, timeout)
         return json.loads(response.read())
 
