@@ -155,7 +155,7 @@ class OrderManager:
         price = position
 
         order = self.exchange.place_order(price, quantity, order_type)
-        if order['ordStatus'] != "Rejected":
+        if settings.DRY_RUN == True or order['ordStatus'] != "Rejected":
             print timestamp_string(), order_type.capitalize() + ":", quantity, \
                 "@", price, "id:", order["orderID"], \
                 "value: %.6f XBT" % XBt_to_XBT(cost(self.instrument, price, quantity)), \
