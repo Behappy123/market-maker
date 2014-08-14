@@ -229,7 +229,11 @@ class OrderManager:
 
 # We love us
 import os
-rows, columns = os.popen('stty size', 'r').read().split()
+import platform
+if platform.system() == 'Windows':
+    columns = 100 # fake it til ya make it
+else:
+    rows, columns = os.popen('stty size', 'r').read().split()
 if int(columns) < 151:
     print '''
     ____  _ __  __  __________  __
