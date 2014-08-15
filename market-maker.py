@@ -23,7 +23,10 @@ def margin(instrument, quantity, price):
 class ExchangeInterface:
     def __init__(self, dry_run=False):
         self.dry_run = dry_run
-        self.symbol = sys.argv[1] if len(sys.argv) > 1 else settings.SYMBOL
+        if len(sys.argv) > 1:
+            self.symbol = sys.argv[1]
+        else:
+            self.symbol = settings.SYMBOL
         self.bitmex = bitmex.BitMEX(base_url=settings.BASE_URL, symbol=self.symbol, login=settings.LOGIN, password=settings.PASSWORD)
 
     def authenticate(self):
@@ -177,8 +180,8 @@ class OrderManager:
         # If an order fills, reset it
         for index, order in old_orders.iteritems():
             if order["orderID"] not in order_ids:
-                print "Order filled, id: %s, price: %.2f, quantity: %d" % (order["orderID"], order["price"], \
-                    order["orderQty"])
+                print "Order filled, id: %s, price: %.2f, quantity: %d, side: %s" % (order["orderID"], order["price"], \
+                    order["orderQty"], order["side"])
                 del self.orders[index]
                 if order["side"] == "Buy":
                     self.place_order(index, "Sell")
