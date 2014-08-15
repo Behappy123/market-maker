@@ -184,9 +184,9 @@ class OrderManager:
                     order["orderQty"], order["side"])
                 del self.orders[index]
                 if order["side"] == "Buy":
-                    self.place_order(index, "Sell")
+                    self.place_order(index, "Buy")
                 else:
-                    self.place_order(-index, "Buy")
+                    self.place_order(-index, "Sell")
                 print_status = True
 
         num_buys = 0
