@@ -26,7 +26,16 @@ class BitMEX(object):
     def get_instrument(self):
         """Get an instrument's details"""
         api = "instrument"
-        return self._curl_bitmex(api=api, query={'filter': json.dumps({'symbol': self.symbol})})[0]
+        instruments = self._curl_bitmex(api=api, query={'filter': json.dumps({'symbol': self.symbol})})
+        if len(instruments) == 0:
+            print "Instrument not found: %s." % self.symbol
+            exit(1)
+
+        instrument = instruments[0]
+        if instrument["state"] != "Open":
+            print "The instrument %s is no longer open. State: %s" % (self.symbol, instrument["state"])
+            exit(1)
+        return instrument
 
     def market_depth(self):
         """Get market depth / orderbook"""
