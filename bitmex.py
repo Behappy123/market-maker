@@ -2,6 +2,7 @@ import urllib, urllib2
 from time import sleep
 import json
 import constants
+import errors
 
 # https://www.bitmex.com/api/explorer/
 
@@ -79,7 +80,7 @@ class BitMEX(object):
         def wrapped(self, *args, **kwargs):
             if not (self.token):
                 msg = "You must be authenticated to use this method"
-                raise Exception, msg
+                raise errors.AuthenticationError, msg
             else:
                 return function(self, *args, **kwargs)
         return wrapped

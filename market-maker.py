@@ -7,6 +7,7 @@ from datetime import datetime
 
 import settings
 import constants
+import errors
 
 def timestamp_string():
     return "["+datetime.now().strftime("%I:%M:%S %p")+"]"
@@ -104,14 +105,15 @@ class ExchangeInterface:
 
 class OrderManager:
     def __init__(self):
+        self.exchange = ExchangeInterface(settings.DRY_RUN)
+        print "Using symbol %s." % self.exchange.symbol;
+
+
+    def init(self): 
         if settings.DRY_RUN:
             print "Initializing dry run. Orders printed below represent what would be posted to BitMEX."
         else:
-            print "Order Manager initializing, connecting to BitMEX. Dry run disabled, executing real trades."
-
-
-        self.exchange = ExchangeInterface(settings.DRY_RUN)
-        print "Using symbol %s." % self.exchange.symbol;
+            print "Order Manager initializing, connecting to BitMEX. Live run: executing real trades."
         self.exchange.authenticate()
         self.start_time = datetime.now()
         self.instrument = self.exchange.get_instrument()
@@ -221,13 +223,21 @@ class OrderManager:
             marginBalance = trade_data["margin"]["marginBalance"]
             print "Profit: %.6f" % XBt_to_XBT(marginBalance - self.start_XBt), "XBT. Run Time:", datetime.now() - self.start_time
 
-
+    def exit(self):
+        try:
+            self.exchange.cancel_all_orders()
+        except errors.AuthenticationError, e:
+            print "Was not authenticated; could not cancel orders."
+        except Exception as e:
+            print "Unable to cancel orders: " + e
+    
     def run_loop(self):
         while True:
             sleep(60)
             self.check_orders()
             sys.stdout.write(".")
             sys.stdout.flush()
+
 
 
 # We love us
@@ -262,5 +272,11 @@ else:
     '''
 
 print 'Version: %s\n' % constants.VERSION
+
 om = OrderManager()
-om.run_loop()
+try:
+    om.init()
+    om.run_loop()
+except (KeyboardInterrupt, SystemExit):
+    print "Shutting down. All open orders will be cancelled."
+    om.exit()
