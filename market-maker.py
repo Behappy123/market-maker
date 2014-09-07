@@ -61,12 +61,7 @@ class ExchangeInterface:
         return self.bitmex.get_instrument()
 
     def get_ticker(self):
-        ticker = self.bitmex.ticker_data()
-
-        mid = (float(ticker["buy"]) + float(ticker["sell"])) / 2
-
-        return {"last": float(ticker["last"]), "buy": float(ticker["buy"]), "sell": float(ticker["sell"]), \
-            "symbol": self.symbol, "mid": mid}
+        return self.bitmex.ticker_data()
 
     def get_trade_data(self):
         if self.dry_run:
@@ -151,7 +146,7 @@ class OrderManager:
         return ticker
 
     def get_position(self, index):
-        return round(self.start_position * (1+settings.INTERVAL)**index, constants.USD_DECIMAL_PLACES)
+        return round(self.start_position * (1+settings.INTERVAL)**index, self.instrument['tickLog'])
 
     def place_order(self, index, order_type):
         position = self.get_position(index)
@@ -187,34 +182,6 @@ class OrderManager:
                 del self.orders[index]
                 self.place_order(index, order["side"])
                 print_status = True
-
-        num_buys = 0
-        num_sells = 0
-
-        # Count our buys & sells
-        for order in self.orders.itervalues():
-            if order["side"] == "Buy":
-                num_buys += 1
-            else:
-                num_sells += 1
-
-        # If we're missing buys, refill
-        if num_buys < settings.ORDER_PAIRS:
-            low_index = min(self.orders.keys())
-            if num_buys == 0:
-                # No buy orders left, so leave a gap
-                low_index -= 1
-            for i in range(1, settings.ORDER_PAIRS - num_buys + 1):
-                self.place_order(low_index-i, "Buy")
-
-        # If we're missing sells, refill
-        if num_sells < settings.ORDER_PAIRS:
-            high_index = max(self.orders.keys())
-            if num_sells == 0:
-                # No sell orders left, so leave a gap
-                high_index += 1
-            for i in range(1, settings.ORDER_PAIRS - num_sells + 1):
-                self.place_order(high_index+i, "Sell")
 
         if print_status:
             marginBalance = trade_data["margin"]["marginBalance"]

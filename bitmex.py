@@ -3,6 +3,7 @@ from time import sleep
 import json
 import constants
 import errors
+import math
 
 # https://www.bitmex.com/api/explorer/
 
@@ -18,11 +19,16 @@ class BitMEX(object):
     def ticker_data(self):
         """Get ticker data"""
         data = self.get_instrument()
-        return {
+
+        ticker = {
+            # Rounding to tickLog covers up float error
             "last": data['lastPrice'],
             "buy": data['bidPrice'],
-            "sell": data['askPrice']
+            "sell": data['askPrice'],
+            "mid": (float(data['bidPrice']) + float(data['askPrice'])) / 2
         }
+
+        return {k: round(float(v), data['tickLog']) for k, v in ticker.iteritems()}
 
     def get_instrument(self):
         """Get an instrument's details"""
@@ -36,6 +42,10 @@ class BitMEX(object):
         if instrument["state"] != "Open":
             print "The instrument %s is no longer open. State: %s" % (self.symbol, instrument["state"])
             exit(1)
+
+        # tickLog is the log10 of tickSize
+        instrument['tickLog'] = int(math.fabs(math.log10(instrument['tickSize'])))
+
         return instrument
 
     def market_depth(self):
