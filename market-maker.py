@@ -185,10 +185,7 @@ class OrderManager:
                 print "Order filled, id: %s, price: %.2f, quantity: %d, side: %s" % (order["orderID"], order["price"], \
                     order["orderQty"], order["side"])
                 del self.orders[index]
-                if order["side"] == "Buy":
-                    self.place_order(index, "Buy")
-                else:
-                    self.place_order(-index, "Sell")
+                self.place_order(index, order["side"])
                 print_status = True
 
         num_buys = 0
