@@ -141,12 +141,24 @@ class OrderManager:
 
     def get_ticker(self):
         ticker = self.exchange.get_ticker()
-        self.start_position = ticker["mid"]
+        # Set up our buy & sell positions as the smallest possible unit above and below the current spread
+        # and we'll work out from there. That way we always have the best price but we don't kill wide 
+        # and potentially profitable spreads.
+        self.start_position_buy = ticker["buy"] + self.instrument['tickSize']
+        self.start_position_sell = ticker["sell"] - self.instrument['tickSize']
+        self.start_position_mid = ticker["mid"]
         print timestamp_string(), 'Current Ticker:', ticker
         return ticker
 
     def get_position(self, index):
-        return round(self.start_position * (1+settings.INTERVAL)**index, self.instrument['tickLog'])
+        # Maintain existing spreads for max profit
+        if settings.MAINTAIN_SPREADS:
+            start_position = self.start_position_buy if index < 0 else self.start_position_sell
+            # First positions (index 1, -1) should start right at start_position, others should branch from there
+            index = index + 1 if index < 0 else index - 1
+        else:
+            start_position = self.start_position_mid
+        return round(start_position * (1+settings.INTERVAL)**index, self.instrument['tickLog'])
 
     def place_order(self, index, order_type):
         position = self.get_position(index)
