@@ -28,7 +28,8 @@ class ExchangeInterface:
             self.symbol = sys.argv[1]
         else:
             self.symbol = settings.SYMBOL
-        self.bitmex = bitmex.BitMEX(base_url=settings.BASE_URL, symbol=self.symbol, login=settings.LOGIN, password=settings.PASSWORD)
+        self.bitmex = bitmex.BitMEX(base_url=settings.BASE_URL, symbol=self.symbol, login=settings.LOGIN, 
+            password=settings.PASSWORD, otpToken=settings.OTPTOKEN)
 
     def authenticate(self):
         if not self.dry_run:

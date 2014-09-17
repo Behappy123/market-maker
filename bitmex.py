@@ -8,12 +8,13 @@ import math
 # https://www.bitmex.com/api/explorer/
 
 class BitMEX(object):
-    def __init__(self, base_url=None, symbol=None, login=None, password=None):
+    def __init__(self, base_url=None, symbol=None, login=None, password=None, otpToken=None):
         self.base_url = base_url
         self.symbol = symbol
         self.token = None
         self.login = login
         self.password = password
+        self.otpToken = otpToken
 
 # Public methods
     def ticker_data(self):
@@ -83,7 +84,9 @@ class BitMEX(object):
 # Authentication required methods
     def authenticate(self):
         """Set BitMEX authentication information"""
-        loginResponse = self._curl_bitmex(api="user/login", postdict={'email': self.login, 'password': self.password})
+        loginResponse = self._curl_bitmex(
+            api="user/login", 
+            postdict={'email': self.login, 'password': self.password, 'token': self.otpToken})
         self.token = loginResponse['id']
 
     def authentication_required(function):
