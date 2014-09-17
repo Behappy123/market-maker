@@ -35,6 +35,20 @@ class ExchangeInterface:
         if not self.dry_run:
             self.bitmex.authenticate()
 
+    def cancel_order(self, order):
+        print timestamp_string(), "Cancelling:", order['side'], order['orderQty'], "@", order['price']
+        while True:
+            try:
+                self.bitmex.cancel(order['orderID']); sleep(1)
+            except URLError as e:
+                print e.reason
+                sleep(10)
+            except ValueError as e:
+                print e
+                sleep(10)
+            else:
+                break
+
     def cancel_all_orders(self):
         if self.dry_run:
             return
@@ -45,18 +59,7 @@ class ExchangeInterface:
         orders = trade_data
 
         for order in orders:
-            print timestamp_string(), "Cancelling:", order['side'], order['orderQty'], "@", order['price']
-            while True:
-                try:
-                    self.bitmex.cancel(order['orderID']); sleep(1)
-                except URLError as e:
-                    print e.reason
-                    sleep(10)
-                except ValueError as e:
-                    print e
-                    sleep(10)
-                else:
-                    break
+            self.cancel_order(order)
 
     def get_instrument(self):
         return self.bitmex.get_instrument()
@@ -135,7 +138,6 @@ class OrderManager:
         for i in range(1, settings.ORDER_PAIRS + 1):
             self.place_order(-i, "Buy")
             self.place_order(i, "Sell")
-            sleep(1)
 
         if settings.DRY_RUN:
             exit()
@@ -168,6 +170,7 @@ class OrderManager:
         price = position
 
         order = self.exchange.place_order(price, quantity, order_type)
+        sleep(1) # Don't hammer the API
         if settings.DRY_RUN == True or order['ordStatus'] != "Rejected":
             print timestamp_string(), order_type.capitalize() + ":", quantity, \
                 "@", price, "id:", order["orderID"], \
@@ -187,18 +190,34 @@ class OrderManager:
         old_orders = self.orders.copy()
         print_status = False
 
-        # If an order fills, reset it
         for index, order in old_orders.iteritems():
+            # If an order fills, reset it
             if order["orderID"] not in order_ids:
-                print "Order filled, id: %s, price: %.2f, quantity: %d, side: %s" % (order["orderID"], order["price"], \
-                    order["orderQty"], order["side"])
+                print "Order filled, relisting: id: %s, price: %.2f, quantity: %d, side: %s" % (order["orderID"], \
+                    order["price"], order["orderQty"], order["side"])
                 del self.orders[index]
                 self.place_order(index, order["side"])
                 print_status = True
+            # If an order drifts (reference price moves), cancel and replace it
+            elif self.has_order_drifted(index, order):
+                print "Order drifted, refilling:, id: %s, price: %.2f, quantity: %d, side: %s" % (order["orderID"], \
+                    order["price"], order["orderQty"], order["side"])
+                self.exchange.cancel_order(order)
+                self.place_order(index, order["side"])
 
         if print_status:
             marginBalance = trade_data["margin"]["marginBalance"]
             print "Profit: %.6f" % XBt_to_XBT(marginBalance - self.start_XBt), "XBT. Run Time:", datetime.now() - self.start_time
+
+    # Given an order and its position in the stack, returns a boolean indicating if the reference
+    # price has drifted too much and the order needs to be resubmitted.
+    def has_order_drifted(self, index, order):
+        reference = self.get_position(index)
+
+        price_min = order['price'] * (1.00 - settings.RELIST_INTERVAL)
+        price_max = order['price'] * (1.00 + settings.RELIST_INTERVAL)
+        # Returns true if the order is outside its reference min or max
+        return True if (reference > price_max or reference < price_min) else False
 
     def exit(self):
         try:

@@ -27,4 +27,11 @@ INTERVAL = 0.005
 
 # If True, market-maker will place orders just inside the existing spread and work the interval % outwards,
 # rather than starting in the middle and killing potentially profitable spreads.
-MAINTAIN_SPREADS = False
+MAINTAIN_SPREADS = True
+
+# Each order is designed to be (INTERVAL*n)% away from the spread.
+# If the spread changes and the order has moved outside its bound defined as 
+# (INTERVAL*n) - RELIST_INTERVAL < current_spread < (INTERVAL*n) + RELIST+INTERVAL
+# it will be resubmitted.
+# 0.01 = 1%
+RELIST_INTERVAL = 0.01
