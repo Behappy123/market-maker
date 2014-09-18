@@ -149,6 +149,13 @@ class OrderManager:
         # and potentially profitable spreads.
         self.start_position_buy = ticker["buy"] + self.instrument['tickSize']
         self.start_position_sell = ticker["sell"] - self.instrument['tickSize']
+
+        # Back off if our spread is too small.
+        if self.start_position_buy * (1.00 + settings.MIN_SPREAD) > self.start_position_sell:
+            self.start_position_buy *= (1.00 - (settings.MIN_SPREAD / 2))
+            self.start_position_sell *= (1.00 + (settings.MIN_SPREAD / 2))
+
+        # Midpoint, used for simpler order placement.
         self.start_position_mid = ticker["mid"]
         print timestamp_string(), 'Current Ticker:', ticker
         return ticker

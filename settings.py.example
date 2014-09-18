@@ -25,6 +25,9 @@ ORDER_SIZE = 500
 # Distance between successive orders, as a percentage (example: 0.005 for 0.5%)
 INTERVAL = 0.005
 
+# Minimum spread to maintain, in percent, between asks & bids
+MIN_SPREAD = 0.01
+
 # If True, market-maker will place orders just inside the existing spread and work the interval % outwards,
 # rather than starting in the middle and killing potentially profitable spreads.
 MAINTAIN_SPREADS = True
