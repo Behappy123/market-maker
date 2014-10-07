@@ -160,7 +160,7 @@ class BitMEX(object):
         return self._curl_bitmex(api=api, postdict=postdict)
 
 
-    def _curl_bitmex(self, api, query=None, postdict=None, timeout=8):
+    def _curl_bitmex(self, api, query=None, postdict=None, timeout=3):
         url = self.base_url + api
         if query:
             url = url + "?" + urllib.urlencode(query)
@@ -187,9 +187,21 @@ class BitMEX(object):
                 sleep(1)
                 self.authenticate()
                 return self._curl_bitmex(api, query, postdict, timeout)
+            # 503 - BitMEX temporary downtime, likely due to a deploy. Try again
+            elif e.code == 503:
+                print "Unable to contact the BitMEX API (503), retrying. " + \
+                    "Request: %s \n %s" % (url, json.dumps(postdict))
+                sleep(1)
+                return self._curl_bitmex(api, query, postdict, timeout)
             else:
                 print "Unhandled Error:", e
                 print "Endpoint was: " + api
                 exit(1)
+        except urllib2.URLError, e:
+            print "Unable to contact the BitMEX API (URLError). Please check the URL. Retrying. " + \
+                "Request: %s \n %s" % (url, json.dumps(postdict))
+            sleep(1)
+            return self._curl_bitmex(api, query, postdict, timeout)
+
         return json.loads(response.read())
 
