@@ -10,3 +10,9 @@ To get started:
 
 
 Based on [liquidbot](https://github.com/chrisacheson/liquidbot).
+
+API Keys
+--------
+
+The BitMEX Market Maker bot now supports API Keys. Support for generating keys will be in the BitMEX UI soon,
+but until it is, you can generate and manage them by executing the `generate-api-key.py` script in this directory.
