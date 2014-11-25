@@ -1,20 +1,26 @@
-import urllib, urllib2
+import urllib, urllib2, urlparse
 from time import sleep
 import json
 import constants
 import errors
 import math
+import time
+import hashlib
+import hmac
+import base64
 
 # https://www.bitmex.com/api/explorer/
 
 class BitMEX(object):
-    def __init__(self, base_url=None, symbol=None, login=None, password=None, otpToken=None):
+    def __init__(self, base_url=None, symbol=None, login=None, password=None, otpToken=None, apiKey=None, apiSecret=None):
         self.base_url = base_url
         self.symbol = symbol
         self.token = None
         self.login = login
         self.password = password
         self.otpToken = otpToken
+        self.apiKey = apiKey
+        self.apiSecret = apiSecret
 
 # Public methods
     def ticker_data(self):
@@ -84,6 +90,8 @@ class BitMEX(object):
 # Authentication required methods
     def authenticate(self):
         """Set BitMEX authentication information"""
+        if self.apiKey:
+            return
         loginResponse = self._curl_bitmex(
             api="user/login", 
             postdict={'email': self.login, 'password': self.password, 'token': self.otpToken})
@@ -91,7 +99,7 @@ class BitMEX(object):
 
     def authentication_required(function):
         def wrapped(self, *args, **kwargs):
-            if not (self.token):
+            if not (self.token or self.apiKey):
                 msg = "You must be authenticated to use this method"
                 raise errors.AuthenticationError, msg
             else:
@@ -165,13 +173,19 @@ class BitMEX(object):
         if query:
             url = url + "?" + urllib.urlencode(query)
         if postdict:
-            postdata = urllib.urlencode(postdict)
+            postdata = json.dumps(postdict)
             request = urllib2.Request(url, postdata)
         else:
             request = urllib2.Request(url)
 
         request.add_header('user-agent', 'liquidbot-' + constants.VERSION)
-        if self.token:
+        request.add_header('Content-Type', 'application/json')
+        if self.apiKey:
+            nonce = int(round(time.time() * 1000))
+            request.add_header('api-nonce', nonce)
+            request.add_header('api-key', self.apiKey)
+            request.add_header('api-signature', self._generate_signature(url, nonce, postdict))
+        elif self.token:
             request.add_header('accessToken', self.token)
 
         try:
@@ -204,4 +218,21 @@ class BitMEX(object):
             return self._curl_bitmex(api, query, postdict, timeout)
 
         return json.loads(response.read())
+
+    def _generate_signature(self, url, nonce, postdict):
+        data = ''
+        if postdict:
+            # separators remove spaces from json
+            # BitMEX expects signatures from JSON built without spaces
+            data = json.dumps(postdict, separators=(',', ':'))
+        verb = 'POST' if postdict else 'GET'
+        parsedURL = urlparse.urlparse(url)
+        path = parsedURL.path
+        if parsedURL.query:
+            path = path + '?' + parsedURL.query
+        print "Computing HMAC: %s" % verb + path + str(nonce) + data
+        message = bytes(verb + path + str(nonce) + data).encode('utf-8')
+
+        signature = base64.b64encode(hmac.new(self.apiSecret, message, digestmod=hashlib.sha256).digest())
+        return signature
 

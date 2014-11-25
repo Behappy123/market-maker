@@ -6,6 +6,10 @@ LOGIN = "test@test.com"
 PASSWORD = "password"
 OTPTOKEN = "" # OTP token, if enabled (Google Authenticator)
 
+# If using permanent API keys, leave the above as blank strings and fill these out.
+API_KEY = ""
+API_SECRET = ""
+
 # Instrument to market make.
 SYMBOL = "XBTP14"
 
