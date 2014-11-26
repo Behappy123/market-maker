@@ -139,21 +139,25 @@ class BitMEX(object):
         if price < 0:
             raise Exception("Price must be positive.")
 
-        endpoint = "order/new"
+        endpoint = "order"
         postdict = {
             'symbol': self.symbol,
             'quantity': quantity,
             'price': price
         }
         print postdict
-        return self._curl_bitmex(api=endpoint, postdict=postdict)
+        return self._curl_bitmex(api=endpoint, postdict=postdict, verb="POST")
 
     @authentication_required
     def open_orders(self):
         """Get open orders."""
 
-        api = "order/myOrders"
-        return self._curl_bitmex(api=api, query={'filter': json.dumps({'ordStatus.isTerminated': False, 'symbol': self.symbol})})
+        api = "order"
+        return self._curl_bitmex(
+            api=api, 
+            query={'filter': json.dumps({'ordStatus.isTerminated': False, 'symbol': self.symbol})},
+            verb="GET"
+        )
 
     @authentication_required
     def cancel(self, orderID):
@@ -161,15 +165,17 @@ class BitMEX(object):
            orderID: Order ID
         """
 
-        api = "order/cancel"
+        api = "order"
         postdict = {
             'orderID': orderID,
         }
-        return self._curl_bitmex(api=api, postdict=postdict)
+        return self._curl_bitmex(api=api, postdict=postdict, verb="DELETE")
 
 
-    def _curl_bitmex(self, api, query=None, postdict=None, timeout=3):
+    def _curl_bitmex(self, api, query=None, postdict=None, timeout=3, verb=None):
         url = self.base_url + api
+
+        # Handle data
         if query:
             url = url + "?" + urllib.urlencode(query)
         if postdict:
@@ -178,35 +184,47 @@ class BitMEX(object):
         else:
             request = urllib2.Request(url)
 
+        # Handle custom verbs
+        if verb:
+            request.get_method = lambda: verb
+
+        # Headers
         request.add_header('user-agent', 'liquidbot-' + constants.VERSION)
         request.add_header('Content-Type', 'application/json')
+
+        # If API Key is specified, calculate signature.
+        # When using API Key authentication, you must supply nonce, public key, and signature.
         if self.apiKey:
             nonce = int(round(time.time() * 1000))
             request.add_header('api-nonce', nonce)
             request.add_header('api-key', self.apiKey)
-            request.add_header('api-signature', self._generate_signature(url, nonce, postdict))
+            request.add_header('api-signature', self._generate_signature(verb, url, nonce, postdict))
+
+        # Otherwise use accessToken (returned by login with email/password/otp)
         elif self.token:
             request.add_header('accessToken', self.token)
 
+        # Make the request
         try:
             response = urllib2.urlopen(request, timeout=timeout)
         except urllib2.HTTPError, e:
-            # re-auth and re-run this curl on 401
+            # 401 - Auth error. Re-auth and re-run this request.
             if e.code == 401:
                 if self.token == None:
                     print postdict
-                    print "Login information incorrect, please check and restart."
+                    print "Login information or API Key incorrect, please check and restart."
                     exit(1)
                 print "Token expired, reauthenticating..."
                 sleep(1)
                 self.authenticate()
-                return self._curl_bitmex(api, query, postdict, timeout)
+                return self._curl_bitmex(api, query, postdict, timeout, verb)
             # 503 - BitMEX temporary downtime, likely due to a deploy. Try again
             elif e.code == 503:
                 print "Unable to contact the BitMEX API (503), retrying. " + \
                     "Request: %s \n %s" % (url, json.dumps(postdict))
                 sleep(1)
-                return self._curl_bitmex(api, query, postdict, timeout)
+                return self._curl_bitmex(api, query, postdict, timeout, verb)
+            # Unknown Error
             else:
                 print "Unhandled Error:", e
                 print "Endpoint was: " + api
@@ -215,22 +233,35 @@ class BitMEX(object):
             print "Unable to contact the BitMEX API (URLError). Please check the URL. Retrying. " + \
                 "Request: %s \n %s" % (url, json.dumps(postdict))
             sleep(1)
-            return self._curl_bitmex(api, query, postdict, timeout)
+            return self._curl_bitmex(api, query, postdict, timeout, verb)
 
         return json.loads(response.read())
 
-    def _generate_signature(self, url, nonce, postdict):
+    # Generates an API signature.
+    # A signature is HMAC_SHA256(secret, verb + path + nonce + data), base64 encoded.
+    # Verb must be uppercased, url is relative, nonce must be an increasing 64-bit integer
+    # and the data, if present, must be JSON without whitespace between keys.
+    # 
+    # For example, in psuedocode (and in real code below):
+    # 
+    # verb=POST
+    # url=/api/v1/order
+    # nonce=1416993995705
+    # data={"symbol":"XBTZ14","quantity":1,"price":395.01}
+    # signature = BASE64(HMAC_SHA256(secret, 'POST/api/v1/order1416993995705{"symbol":"XBTZ14","quantity":1,"price":395.01}'))
+    def _generate_signature(self, verb, url, nonce, postdict):
         data = ''
         if postdict:
             # separators remove spaces from json
             # BitMEX expects signatures from JSON built without spaces
             data = json.dumps(postdict, separators=(',', ':'))
-        verb = 'POST' if postdict else 'GET'
+        if not verb:
+            verb = 'POST' if postdict else 'GET'
         parsedURL = urlparse.urlparse(url)
         path = parsedURL.path
         if parsedURL.query:
             path = path + '?' + parsedURL.query
-        print "Computing HMAC: %s" % verb + path + str(nonce) + data
+        # print "Computing HMAC: %s" % verb + path + str(nonce) + data
         message = bytes(verb + path + str(nonce) + data).encode('utf-8')
 
         signature = base64.b64encode(hmac.new(self.apiSecret, message, digestmod=hashlib.sha256).digest())

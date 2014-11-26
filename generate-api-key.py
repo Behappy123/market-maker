@@ -8,14 +8,14 @@ import ssl
 import getpass
 import pprint
 
-# BITMEX_SITE = "https://testnet.bitmex.com"
-BITMEX_SITE = "https://www.bitmex.com"
+BITMEX_SITE = "https://testnet.bitmex.com"
+# BITMEX_SITE = "https://www.bitmex.com"
 
 def main():
-    print "This script will generate an API key and secret for your BitMEX account."
-    print "Safeguard these keys! If somebody gets a hold of your API key and secret,"
-    print "your account can be taken over completely. We recommend setting an IP address restriction."
     operations = ['list_keys', 'create_key', 'enable_key', 'disable_key', 'delete_key']
+    print "########################"
+    print "BitMEX API Key Interface"
+    print "########################"
     prompt = "\nWhat would you like to do? Options are: " + ', '.join(operations) + ": "
     operation = raw_input(prompt)
     if operation not in operations:
@@ -52,6 +52,8 @@ class BitMEX(object):
         print "Key created. Details:\n"
         print "Access Key: " + key["id"]
         print "Secret:     " + key["secret"]
+        print "\nSafeguard your secret key! If somebody gets a hold of your API key and secret,"
+        print "your account can be taken over completely."
         print "\nKey generation complete."
 
     def list_keys(self):
