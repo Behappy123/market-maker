@@ -187,6 +187,8 @@ class BitMEX(object):
         # Handle custom verbs
         if verb:
             request.get_method = lambda: verb
+        else:
+            verb = 'POST' if postdict else 'GET'
 
         # Headers
         request.add_header('user-agent', 'liquidbot-' + constants.VERSION)
@@ -227,7 +229,7 @@ class BitMEX(object):
             # Unknown Error
             else:
                 print "Unhandled Error:", e
-                print "Endpoint was: " + api
+                print "Endpoint was: %s %s" % (verb, api)
                 exit(1)
         except urllib2.URLError, e:
             print "Unable to contact the BitMEX API (URLError). Please check the URL. Retrying. " + \
@@ -255,8 +257,6 @@ class BitMEX(object):
             # separators remove spaces from json
             # BitMEX expects signatures from JSON built without spaces
             data = json.dumps(postdict, separators=(',', ':'))
-        if not verb:
-            verb = 'POST' if postdict else 'GET'
         parsedURL = urlparse.urlparse(url)
         path = parsedURL.path
         if parsedURL.query:
