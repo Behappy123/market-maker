@@ -213,8 +213,9 @@ class BitMEX(object):
             # 401 - Auth error. Re-auth and re-run this request.
             if e.code == 401:
                 if self.token == None:
-                    print postdict
+                    if postdict: print postdict
                     print "Login information or API Key incorrect, please check and restart."
+                    print e.readline()
                     exit(1)
                 print "Token expired, reauthenticating..."
                 sleep(1)
