@@ -221,6 +221,16 @@ class BitMEX(object):
                 sleep(1)
                 self.authenticate()
                 return self._curl_bitmex(api, query, postdict, timeout, verb)
+
+            # 404, can be thrown if order canceled does not exist.
+            elif e.code == 404:
+                if verb == 'DELETE':
+                    print "Order not found: %s" % postdict['orderID']
+                    return
+                print "Unable to contact the BitMEX API (404). " + \
+                    "Request: %s \n %s" % (url, json.dumps(postdict))
+                exit(1)
+                
             # 503 - BitMEX temporary downtime, likely due to a deploy. Try again
             elif e.code == 503:
                 print "Unable to contact the BitMEX API (503), retrying. " + \
