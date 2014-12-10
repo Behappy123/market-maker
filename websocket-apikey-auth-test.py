@@ -17,18 +17,23 @@ API_SECRET="f9XOPLacPCZJ1dvPzN8B6Et7nMEaPGeomMSHk8Cr2zD4NfCY"
 # BITMEX_URL="wss://testnet.bitmex.com"
 BITMEX_URL="wss://www.bitmex.com"
 
+VERB="GET"
+ENDPOINT="/realtime"
+
 def main():
     """Authenticate with the BitMEX API & request account information."""
-    verb = "GET"
-    endpoint = "/realtime/websocket"
+    test_with_message()
+    test_with_querystring()
+
+def test_with_message():
     # This is up to you, most use microtime but you may have your own scheme so long as it's increasing
     # and doesn't repeat.
     nonce = int(round(time.time() * 1000))
     # See signature generation reference at https://www.bitmex.com/app/apiKeys
-    signature = bitmex_signature(API_SECRET, verb, endpoint, nonce)
+    signature = bitmex_signature(API_SECRET, VERB, ENDPOINT, nonce)
 
     # Initial connection - BitMEX sends a welcome message.
-    ws = create_connection(BITMEX_URL + "/realtime/websocket")
+    ws = create_connection(BITMEX_URL + ENDPOINT)
     print "Receiving Welcome Message..."
     result = ws.recv()
     print "Received '%s'" % result
@@ -37,6 +42,31 @@ def main():
     request = {"op": "authKey", "args": [API_KEY, nonce, signature]};
     ws.send(json.dumps(request))
     print "Sent Auth request"
+    result = ws.recv()
+    print "Received '%s'" % result
+
+    # Send a request that requires authorization.
+    request = {"op": "getAccount"}
+    ws.send(json.dumps(request))
+    print "Sent getAccount"
+    result = ws.recv()
+    print "Received '%s'" % result
+    result = ws.recv()
+    print "Received '%s'" % result
+
+    ws.close()
+
+def test_with_querystring():
+    # This is up to you, most use microtime but you may have your own scheme so long as it's increasing
+    # and doesn't repeat.
+    nonce = int(round(time.time() * 1000))
+    # See signature generation reference at https://www.bitmex.com/app/apiKeys
+    signature = bitmex_signature(API_SECRET, VERB, ENDPOINT, nonce)
+
+    # Initial connection - BitMEX sends a welcome message.
+    ws = create_connection(BITMEX_URL + ENDPOINT + \
+        "?api-nonce=%s&api-signature=%s&api-key=%s" % (nonce, signature, API_KEY))
+    print "Receiving Welcome Message..."
     result = ws.recv()
     print "Received '%s'" % result
 
@@ -69,7 +99,7 @@ def bitmex_signature(apiSecret, verb, url, nonce, postdict=None):
     # print "Computing HMAC: %s" % verb + path + str(nonce) + data
     message = bytes(verb + path + str(nonce) + data).encode('utf-8')
 
-    signature = base64.b64encode(hmac.new(apiSecret, message, digestmod=hashlib.sha256).digest())
+    signature = hmac.new(apiSecret, message, digestmod=hashlib.sha256).hexdigest()
     return signature
 
 if __name__ == "__main__":

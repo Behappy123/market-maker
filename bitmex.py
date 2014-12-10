@@ -7,7 +7,6 @@ import math
 import time
 import hashlib
 import hmac
-import base64
 
 # https://www.bitmex.com/api/explorer/
 
@@ -251,7 +250,7 @@ class BitMEX(object):
         return json.loads(response.read())
 
     # Generates an API signature.
-    # A signature is HMAC_SHA256(secret, verb + path + nonce + data), base64 encoded.
+    # A signature is HMAC_SHA256(secret, verb + path + nonce + data), hex encoded.
     # Verb must be uppercased, url is relative, nonce must be an increasing 64-bit integer
     # and the data, if present, must be JSON without whitespace between keys.
     # 
@@ -261,7 +260,7 @@ class BitMEX(object):
     # url=/api/v1/order
     # nonce=1416993995705
     # data={"symbol":"XBTZ14","quantity":1,"price":395.01}
-    # signature = BASE64(HMAC_SHA256(secret, 'POST/api/v1/order1416993995705{"symbol":"XBTZ14","quantity":1,"price":395.01}'))
+    # signature = HEX(HMAC_SHA256(secret, 'POST/api/v1/order1416993995705{"symbol":"XBTZ14","quantity":1,"price":395.01}'))
     def _generate_signature(self, verb, url, nonce, postdict):
         data = ''
         if postdict:
@@ -275,6 +274,6 @@ class BitMEX(object):
         # print "Computing HMAC: %s" % verb + path + str(nonce) + data
         message = bytes(verb + path + str(nonce) + data).encode('utf-8')
 
-        signature = base64.b64encode(hmac.new(self.apiSecret, message, digestmod=hashlib.sha256).digest())
+        signature = hmac.new(self.apiSecret, message, digestmod=hashlib.sha256).hexdigest()
         return signature
 
