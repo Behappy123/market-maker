@@ -7,28 +7,39 @@ import math
 import ssl
 import getpass
 import pprint
+import signal
 
 BITMEX_SITE = "https://testnet.bitmex.com"
 # BITMEX_SITE = "https://www.bitmex.com"
 
 def main():
-    operations = ['list_keys', 'create_key', 'enable_key', 'disable_key', 'delete_key']
     print "########################"
     print "BitMEX API Key Interface"
-    print "########################"
-    prompt = "\nWhat would you like to do? Options are: " + ', '.join(operations) + ": "
-    operation = raw_input(prompt)
+    print "########################\n"
+
+    apiObj = auth()
+    while True:
+        prompt(apiObj)
+
+def prompt(apiObj):
+    operations = ['list_keys', 'create_key', 'enable_key', 'disable_key', 'delete_key']
+    print "Available operations: " + ', '.join(operations)
+    operation = raw_input("Enter command: ")
     if operation not in operations:
         print "ERROR: Operation not supported: %s" % operation
         exit(1)
 
-    print "To complete this action, you must log in first."
+    getattr(apiObj, operation)()
+    print "\nOperation completed. Press <ctrl+c> to quit."
+
+def auth():
+    print "Please log in."
     email = raw_input("Email: ")
     password = getpass.getpass("Password: ")
     otpToken = raw_input("OTP Token (if enabled. If not, press <enter>): ")
-
-    bitmex = BitMEX(email, password, otpToken)
-    getattr(bitmex, operation)()
+    apiObj = BitMEX(email, password, otpToken)
+    print "\nSuccessfully logged in."
+    return apiObj
 
 class BitMEX(object):
     def __init__(self, email=None, password=None, otpToken=None):
@@ -59,32 +70,43 @@ class BitMEX(object):
     def list_keys(self):
         """List your API Keys."""
         keys = self._curl_bitmex("/apiKey/")
-        pp = pprint.PrettyPrinter(indent=2)
-        pp.pprint(keys)
+        print json.dumps(keys, sort_keys=True, indent=4)
 
     def enable_key(self):
         """Enable an existing API Key."""
         print "This command will enable a disabled key."
-        accessKey = raw_input("Access Key: ")
-        key = self._curl_bitmex("/apiKey/enable", \
-            postdict={"accessKey": accessKey})
-        print "Key with ID %s enabled." % key["id"]
+        accessKey = raw_input("Access Key ID: ")
+        try:
+            key = self._curl_bitmex("/apiKey/enable", \
+                postdict={"accessKey": accessKey})
+            print "Key with ID %s enabled." % key["id"]
+        except:
+            print "Unable to enable key, please try again."
+            self.enable_key()
 
     def disable_key(self):
         """Disable an existing API Key."""
         print "This command will disable a enabled key."
-        accessKey = raw_input("Access Key: ")
-        key = self._curl_bitmex("/apiKey/disable", \
-            postdict={"accessKey": accessKey})
-        print "Key with ID %s disabled." % key["id"]
+        accessKey = raw_input("Access Key ID: ")
+        try:
+            key = self._curl_bitmex("/apiKey/disable", \
+                postdict={"accessKey": accessKey})
+            print "Key with ID %s disabled." % key["id"]
+        except:
+            print "Unable to disable key, please try again."
+            self.disable_key()
 
     def delete_key(self):
         """Delete an existing API Key."""
         print "This command will delete an API key."
-        accessKey = raw_input("Access Key: ")
-        self._curl_bitmex("/apiKey/", \
-            postdict={"accessKey": accessKey}, verb='DELETE')
-        print "Key with ID %s disabled." % accessKey
+        accessKey = raw_input("Access Key ID: ")
+        try:
+            self._curl_bitmex("/apiKey/", \
+                postdict={"accessKey": accessKey}, verb='DELETE')
+            print "Key with ID %s disabled." % accessKey
+        except:
+            print "Unable to delete key, please try again."
+            self.delete_key()
 
     def _curl_bitmex(self, api, query=None, postdict=None, timeout=3, verb=None):
         url = self.base_url + api
@@ -115,14 +137,21 @@ class BitMEX(object):
                     "Request: %s \n %s" % (url, json.dumps(postdict))
                 exit(1)
             else:
-                print "Unhandled Error:", e
+                print "Error:", e
                 print "Endpoint was: " + api
-                exit(1)
+                print "Please try again."
+                raise e
         except (urllib2.URLError, ssl.SSLError), e:
             print "Unable to contact the BitMEX API (URLError). Please check the URL. Please try again later. " + \
                 "Request: %s \n %s" % (url, json.dumps(postdict))
             exit(1)
 
         return json.loads(response.read())
+
+def signal_handler(signal, frame):
+    print('\nExiting...')
+    exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
 
 main()
