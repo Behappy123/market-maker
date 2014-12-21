@@ -1,18 +1,20 @@
+"""BitMEX API Connector."""
 import requests
-import urlparse
 from time import sleep
 import json
 import constants
 import errors
 import math
-import time
-import hashlib
-import hmac
+from AccessTokenAuth import AccessTokenAuth
+from APIKeyAuth import APIKeyAuth
 
 # https://www.bitmex.com/api/explorer/
-
 class BitMEX(object):
+
+    """BitMEX API Connector."""
+
     def __init__(self, base_url=None, symbol=None, login=None, password=None, otpToken=None, apiKey=None, apiSecret=None):
+        """Init connector."""
         self.base_url = base_url
         self.symbol = symbol
         self.token = None
@@ -21,12 +23,16 @@ class BitMEX(object):
         self.otpToken = otpToken
         self.apiKey = apiKey
         self.apiSecret = apiSecret
+
+        # Prepare HTTPS session
         self.session = requests.Session()
+        # These headers are always sent
         self.session.headers.update({'user-agent': 'liquidbot-' + constants.VERSION})
+        self.session.headers.update({'content-type': 'application/json'})
 
 # Public methods
     def ticker_data(self):
-        """Get ticker data"""
+        """Get ticker data."""
         data = self.get_instrument()
 
         ticker = {
@@ -40,7 +46,7 @@ class BitMEX(object):
         return {k: round(float(v), data['tickLog']) for k, v in ticker.iteritems()}
 
     def get_instrument(self):
-        """Get an instrument's details"""
+        """Get an instrument's details."""
         api = "instrument"
         instruments = self._curl_bitmex(api=api, query={'filter': json.dumps({'symbol': self.symbol})})
         if len(instruments) == 0:
@@ -58,29 +64,28 @@ class BitMEX(object):
         return instrument
 
     def market_depth(self):
-        """Get market depth / orderbook"""
+        """Get market depth / orderbook."""
         api = "orderBook"
         return self._curl_bitmex(api=api, query={'symbol': self.symbol})
 
     def recent_trades(self):
-        """Get recent trades
+        """Get recent trades.
 
-           Returns
-           -------
-           A list of dicts:
-                 {u'amount': 60,
-                  u'date': 1306775375,
-                  u'price': 8.7401099999999996,
-                  u'tid': u'93842'},
+        Returns
+        -------
+        A list of dicts:
+              {u'amount': 60,
+               u'date': 1306775375,
+               u'price': 8.7401099999999996,
+               u'tid': u'93842'},
 
         """
-
         api = "trade/getRecent"
         return self._curl_bitmex(api=api)
 
     @property
     def snapshot(self):
-        """Get current BBO"""
+        """Get current BBO."""
         order_book = self.market_depth()
         return {
             'bid': order_book[0]['bidPrice'],
@@ -91,7 +96,7 @@ class BitMEX(object):
 
 # Authentication required methods
     def authenticate(self):
-        """Set BitMEX authentication information"""
+        """Set BitMEX authentication information."""
         if self.apiKey:
             return
         loginResponse = self._curl_bitmex(
@@ -101,6 +106,7 @@ class BitMEX(object):
         self.session.headers.update({'access-token': self.token})
 
     def authentication_required(function):
+        """Annotation for methods that require auth."""
         def wrapped(self, *args, **kwargs):
             if not (self.token or self.apiKey):
                 msg = "You must be authenticated to use this method"
@@ -120,9 +126,7 @@ class BitMEX(object):
         """Place a buy order.
 
         Returns order object. ID: orderID
-
         """
-
         return self.place_order(quantity, price)
 
     @authentication_required
@@ -130,15 +134,12 @@ class BitMEX(object):
         """Place a sell order.
 
         Returns order object. ID: orderID
-
         """
-
         return self.place_order(-quantity, price)
 
     @authentication_required
     def place_order(self, quantity, price):
         """Place an order."""
-
         if price < 0:
             raise Exception("Price must be positive.")
 
@@ -154,7 +155,6 @@ class BitMEX(object):
     @authentication_required
     def open_orders(self):
         """Get open orders."""
-
         api = "order"
         return self._curl_bitmex(
             api=api, 
@@ -164,10 +164,7 @@ class BitMEX(object):
 
     @authentication_required
     def cancel(self, orderID):
-        """Cancel an existing order.
-           orderID: Order ID
-        """
-
+        """Cancel an existing order."""
         api = "order"
         postdict = {
             'orderID': orderID,
@@ -176,31 +173,31 @@ class BitMEX(object):
 
 
     def _curl_bitmex(self, api, query=None, postdict=None, timeout=3, verb=None):
+        """Send a request to BitMEX Servers."""
+        # Handle URL
         url = self.base_url + api
 
-        # Handle custom verbs
+        # Default to POST if data is attached, GET otherwise
         if not verb:
             verb = 'POST' if postdict else 'GET'
 
-        headers = {'Content-Type': 'application/json'}
+        # Handle data
+        data = None
+        if postdict:
+            # When calculating API Key there must be no spaces in the json
+            data = json.dumps(postdict, separators=(',', ':'))
 
-        # If API Key is specified, calculate signature.
-        # When using API Key authentication, you must supply nonce, public key, and signature.
+        # Auth: Use Access Token by default, API Key/Secret if provided
+        auth = AccessTokenAuth(self.token)
         if self.apiKey:
-            nonce = int(round(time.time() * 1000))
-            headers['api-nonce'] = nonce
-            headers['api-key'] = self.apiKey
-            headers['api-signature'] = self._generate_signature(verb, url, nonce, postdict)
+            auth = APIKeyAuth(self.apiKey, self.apiSecret)
 
         # Make the request
         try:
-            data = None
-            if postdict:
-                data = json.dumps(postdict)
             req = requests.Request(verb, url, 
                 data=data,
-                params=query,
-                headers=headers)
+                auth=auth,
+                params=query)
             prepped = self.session.prepare_request(req)
             response = self.session.send(prepped, timeout=timeout)
             # Make non-200s throw
@@ -251,32 +248,3 @@ class BitMEX(object):
             return self._curl_bitmex(api, query, postdict, timeout, verb)
 
         return response.json()
-
-    # Generates an API signature.
-    # A signature is HMAC_SHA256(secret, verb + path + nonce + data), hex encoded.
-    # Verb must be uppercased, url is relative, nonce must be an increasing 64-bit integer
-    # and the data, if present, must be JSON without whitespace between keys.
-    # 
-    # For example, in psuedocode (and in real code below):
-    # 
-    # verb=POST
-    # url=/api/v1/order
-    # nonce=1416993995705
-    # data={"symbol":"XBTZ14","quantity":1,"price":395.01}
-    # signature = HEX(HMAC_SHA256(secret, 'POST/api/v1/order1416993995705{"symbol":"XBTZ14","quantity":1,"price":395.01}'))
-    def _generate_signature(self, verb, url, nonce, postdict):
-        data = ''
-        if postdict:
-            # separators remove spaces from json
-            # BitMEX expects signatures from JSON built without spaces
-            data = json.dumps(postdict, separators=(',', ':'))
-        parsedURL = urlparse.urlparse(url)
-        path = parsedURL.path
-        if parsedURL.query:
-            path = path + '?' + parsedURL.query
-        # print "Computing HMAC: %s" % verb + path + str(nonce) + data
-        message = bytes(verb + path + str(nonce) + data).encode('utf-8')
-
-        signature = hmac.new(self.apiSecret, message, digestmod=hashlib.sha256).hexdigest()
-        return signature
-
