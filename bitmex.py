@@ -1,4 +1,5 @@
-import urllib, urllib2, urlparse
+import requests
+import urlparse
 from time import sleep
 import json
 import constants
@@ -20,6 +21,8 @@ class BitMEX(object):
         self.otpToken = otpToken
         self.apiKey = apiKey
         self.apiSecret = apiSecret
+        self.session = requests.Session()
+        self.session.headers.update({'user-agent': 'liquidbot-' + constants.VERSION})
 
 # Public methods
     def ticker_data(self):
@@ -95,6 +98,7 @@ class BitMEX(object):
             api="user/login", 
             postdict={'email': self.login, 'password': self.password, 'token': self.otpToken})
         self.token = loginResponse['id']
+        self.session.headers.update({'access-token': self.token})
 
     def authentication_required(function):
         def wrapped(self, *args, **kwargs):
@@ -174,47 +178,40 @@ class BitMEX(object):
     def _curl_bitmex(self, api, query=None, postdict=None, timeout=3, verb=None):
         url = self.base_url + api
 
-        # Handle data
-        if query:
-            url = url + "?" + urllib.urlencode(query)
-        if postdict:
-            postdata = json.dumps(postdict)
-            request = urllib2.Request(url, postdata)
-        else:
-            request = urllib2.Request(url)
-
         # Handle custom verbs
-        if verb:
-            request.get_method = lambda: verb
-        else:
+        if not verb:
             verb = 'POST' if postdict else 'GET'
 
-        # Headers
-        request.add_header('user-agent', 'liquidbot-' + constants.VERSION)
-        request.add_header('Content-Type', 'application/json')
+        headers = {'Content-Type': 'application/json'}
 
         # If API Key is specified, calculate signature.
         # When using API Key authentication, you must supply nonce, public key, and signature.
         if self.apiKey:
             nonce = int(round(time.time() * 1000))
-            request.add_header('api-nonce', nonce)
-            request.add_header('api-key', self.apiKey)
-            request.add_header('api-signature', self._generate_signature(verb, url, nonce, postdict))
-
-        # Otherwise use accessToken (returned by login with email/password/otp)
-        elif self.token:
-            request.add_header('accessToken', self.token)
+            headers['api-nonce'] = nonce
+            headers['api-key'] = self.apiKey
+            headers['api-signature'] = self._generate_signature(verb, url, nonce, postdict)
 
         # Make the request
         try:
-            response = urllib2.urlopen(request, timeout=timeout)
-        except urllib2.HTTPError, e:
+            data = None
+            if postdict:
+                data = json.dumps(postdict)
+            req = requests.Request(verb, url, 
+                data=data,
+                params=query,
+                headers=headers)
+            prepped = self.session.prepare_request(req)
+            response = self.session.send(prepped, timeout=timeout)
+            # Make non-200s throw
+            response.raise_for_status()
+
+        except requests.exceptions.HTTPError, e:
             # 401 - Auth error. Re-auth and re-run this request.
-            if e.code == 401:
+            if response.status_code == 401:
                 if self.token == None:
-                    if postdict: print postdict
                     print "Login information or API Key incorrect, please check and restart."
-                    print e.readline()
+                    if postdict: print postdict
                     exit(1)
                 print "Token expired, reauthenticating..."
                 sleep(1)
@@ -222,7 +219,7 @@ class BitMEX(object):
                 return self._curl_bitmex(api, query, postdict, timeout, verb)
 
             # 404, can be thrown if order canceled does not exist.
-            elif e.code == 404:
+            elif response.status_code == 404:
                 if verb == 'DELETE':
                     print "Order not found: %s" % postdict['orderID']
                     return
@@ -231,7 +228,7 @@ class BitMEX(object):
                 exit(1)
                 
             # 503 - BitMEX temporary downtime, likely due to a deploy. Try again
-            elif e.code == 503:
+            elif response.status_code == 503:
                 print "Unable to contact the BitMEX API (503), retrying. " + \
                     "Request: %s \n %s" % (url, json.dumps(postdict))
                 sleep(1)
@@ -241,13 +238,19 @@ class BitMEX(object):
                 print "Unhandled Error:", e
                 print "Endpoint was: %s %s" % (verb, api)
                 exit(1)
-        except urllib2.URLError, e:
-            print "Unable to contact the BitMEX API (URLError). Please check the URL. Retrying. " + \
+
+        except requests.exceptions.Timeout, e:
+            # Timeout, re-run this request
+            print "Timed out, retrying..."
+            return self._curl_bitmex(api, query, postdict, timeout, verb)
+
+        except requests.exceptions.ConnectionError, e:
+            print "Unable to contact the BitMEX API (ConnectionError). Please check the URL. Retrying. " + \
                 "Request: %s \n %s" % (url, json.dumps(postdict))
             sleep(1)
             return self._curl_bitmex(api, query, postdict, timeout, verb)
 
-        return json.loads(response.read())
+        return response.json()
 
     # Generates an API signature.
     # A signature is HMAC_SHA256(secret, verb + path + nonce + data), hex encoded.
