@@ -1,6 +1,5 @@
 from requests.auth import AuthBase
 import urlparse
-import json
 import time
 import hashlib
 import hmac
@@ -21,6 +20,7 @@ class APIKeyAuth(AuthBase):
         r.headers['api-nonce'] = nonce
         r.headers['api-key'] = self.apiKey
         r.headers['api-signature'] = self.generate_signature(self.apiSecret, r.method, r.url, nonce, r.body or '')
+
         return r
 
     # Generates an API signature.
