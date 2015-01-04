@@ -60,7 +60,10 @@ class ExchangeInterface:
         orders = trade_data
 
         for order in orders:
-            self.cancel_order(order)
+            print timestamp_string(), "Cancelling:", order['side'], order['orderQty'], "@", order['price']
+
+        if len(orders):
+            self.bitmex.cancel([order['orderID'] for order in orders])
 
     def get_instrument(self):
         return self.bitmex.get_instrument()
