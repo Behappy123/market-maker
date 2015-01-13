@@ -6,7 +6,7 @@ import constants
 import errors
 import math
 from AccessTokenAuth import AccessTokenAuth
-from APIKeyAuth import APIKeyAuth
+from APIKeyAuthWithExpires import APIKeyAuthWithExpires
 
 # https://www.bitmex.com/api/explorer/
 class BitMEX(object):
@@ -190,7 +190,7 @@ class BitMEX(object):
         # Auth: Use Access Token by default, API Key/Secret if provided
         auth = AccessTokenAuth(self.token)
         if self.apiKey:
-            auth = APIKeyAuth(self.apiKey, self.apiSecret)
+            auth = APIKeyAuthWithExpires(self.apiKey, self.apiSecret)
 
         # Make the request
         try:
@@ -208,6 +208,7 @@ class BitMEX(object):
             if response.status_code == 401:
                 if self.token == None:
                     print "Login information or API Key incorrect, please check and restart."
+                    print "Error: " + response.text
                     if postdict: print postdict
                     exit(1)
                 print "Token expired, reauthenticating..."
