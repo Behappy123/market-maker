@@ -61,7 +61,7 @@ class BitMEX(object):
             postdict={"name": name, "cidr": cidr, "enabled": True})
 
         print "Key created. Details:\n"
-        print "Access Key: " + key["id"]
+        print "API Key:    " + key["id"]
         print "Secret:     " + key["secret"]
         print "\nSafeguard your secret key! If somebody gets a hold of your API key and secret,"
         print "your account can be taken over completely."
@@ -75,10 +75,10 @@ class BitMEX(object):
     def enable_key(self):
         """Enable an existing API Key."""
         print "This command will enable a disabled key."
-        accessKey = raw_input("Access Key ID: ")
+        apiKeyID = raw_input("API Key ID: ")
         try:
             key = self._curl_bitmex("/apiKey/enable", \
-                postdict={"accessKey": accessKey})
+                postdict={"apiKeyID": apiKeyID})
             print "Key with ID %s enabled." % key["id"]
         except:
             print "Unable to enable key, please try again."
@@ -87,10 +87,10 @@ class BitMEX(object):
     def disable_key(self):
         """Disable an existing API Key."""
         print "This command will disable a enabled key."
-        accessKey = raw_input("Access Key ID: ")
+        apiKeyID = raw_input("API Key ID: ")
         try:
             key = self._curl_bitmex("/apiKey/disable", \
-                postdict={"accessKey": accessKey})
+                postdict={"apiKeyID": apiKeyID})
             print "Key with ID %s disabled." % key["id"]
         except:
             print "Unable to disable key, please try again."
@@ -99,11 +99,11 @@ class BitMEX(object):
     def delete_key(self):
         """Delete an existing API Key."""
         print "This command will delete an API key."
-        accessKey = raw_input("Access Key ID: ")
+        apiKeyID = raw_input("API Key ID: ")
         try:
             self._curl_bitmex("/apiKey/", \
-                postdict={"accessKey": accessKey}, verb='DELETE')
-            print "Key with ID %s disabled." % accessKey
+                postdict={"apiKeyID": apiKeyID}, verb='DELETE')
+            print "Key with ID %s disabled." % apiKeyID
         except:
             print "Unable to delete key, please try again."
             self.delete_key()
