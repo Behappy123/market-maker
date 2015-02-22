@@ -28,8 +28,8 @@ class ExchangeInterface:
             self.symbol = sys.argv[1]
         else:
             self.symbol = settings.SYMBOL
-        self.bitmex = bitmex.BitMEX(base_url=settings.BASE_URL, symbol=self.symbol, login=settings.LOGIN, 
-            password=settings.PASSWORD, otpToken=settings.OTPTOKEN, apiKey=settings.API_KEY, 
+        self.bitmex = bitmex.BitMEX(base_url=settings.BASE_URL, symbol=self.symbol, login=settings.LOGIN,
+            password=settings.PASSWORD, otpToken=settings.OTPTOKEN, apiKey=settings.API_KEY,
             apiSecret=settings.API_SECRET)
 
     def authenticate(self):
@@ -127,7 +127,7 @@ class OrderManager:
         self.orders = {}
 
         ticker = self.get_ticker()
-   
+
         trade_data = self.exchange.get_trade_data()
         self.start_XBt = trade_data["margin"]["marginBalance"]
         print timestamp_string(), "Current XBT Balance: %.6f" % XBt_to_XBT(self.start_XBt)
@@ -181,15 +181,15 @@ class OrderManager:
         price = position
 
         order = self.exchange.place_order(price, quantity, order_type)
-        sleep(1) # Don't hammer the API
-        if settings.DRY_RUN == True or order['ordStatus'] != "Rejected":
+        sleep(1)  # Don't hammer the API
+        if settings.DRY_RUN is True or order['ordStatus'] != "Rejected":
             print timestamp_string(), order_type.capitalize() + ":", quantity, \
                 "@", price, "id:", order["orderID"], \
                 "value: %.6f XBT" % XBt_to_XBT(cost(self.instrument, price, quantity)), \
                 "margin: %.6f XBT" % XBt_to_XBT(margin(self.instrument, price, quantity))
         else:
             print "Order rejected: " + order['ordRejReason']
-            sleep(5) # don't go crazy
+            sleep(5)  # don't go crazy
 
         self.orders[index] = order
 
@@ -237,7 +237,7 @@ class OrderManager:
             print "Was not authenticated; could not cancel orders."
         except Exception as e:
             print "Unable to cancel orders: " + e
-    
+
     def run_loop(self):
         while True:
             sleep(60)
