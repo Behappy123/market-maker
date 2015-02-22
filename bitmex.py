@@ -118,8 +118,7 @@ class BitMEX(object):
     @authentication_required
     def funds(self):
         """Get your current balance."""
-        userResponse = self._curl_bitmex(api="user")
-        return userResponse['margin']
+        return self._curl_bitmex(api="user/margin")
 
     @authentication_required
     def buy(self, quantity, price):
