@@ -150,7 +150,7 @@ class BitMEX(object):
 
         endpoint = "order"
         # Generate a unique clOrdID with our prefix so we can identify it.
-        clOrdID = self.orderIDPrefix + uuid.uuid4().bytes.encode('base64')
+        clOrdID = self.orderIDPrefix + uuid.uuid4().bytes.encode('base64').rstrip('=\n')
         postdict = {
             'symbol': self.symbol,
             'quantity': quantity,
