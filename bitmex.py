@@ -5,15 +5,18 @@ import json
 import constants
 import errors
 import math
+import uuid
 from AccessTokenAuth import AccessTokenAuth
 from APIKeyAuthWithExpires import APIKeyAuthWithExpires
+
 
 # https://www.bitmex.com/api/explorer/
 class BitMEX(object):
 
     """BitMEX API Connector."""
 
-    def __init__(self, base_url=None, symbol=None, login=None, password=None, otpToken=None, apiKey=None, apiSecret=None):
+    def __init__(self, base_url=None, symbol=None, login=None, password=None, otpToken=None,
+                 apiKey=None, apiSecret=None, orderIDPrefix='mm_bitmex_'):
         """Init connector."""
         self.base_url = base_url
         self.symbol = symbol
@@ -23,6 +26,9 @@ class BitMEX(object):
         self.otpToken = otpToken
         self.apiKey = apiKey
         self.apiSecret = apiSecret
+        if len(orderIDPrefix) > 13:
+            raise ValueError("settings.ORDERID_PREFIX must be at most 13 characters long!")
+        self.orderIDPrefix = orderIDPrefix
 
         # Prepare HTTPS session
         self.session = requests.Session()
@@ -100,7 +106,7 @@ class BitMEX(object):
         if self.apiKey:
             return
         loginResponse = self._curl_bitmex(
-            api="user/login", 
+            api="user/login",
             postdict={'email': self.login, 'password': self.password, 'token': self.otpToken})
         self.token = loginResponse['id']
         self.session.headers.update({'access-token': self.token})
@@ -143,23 +149,27 @@ class BitMEX(object):
             raise Exception("Price must be positive.")
 
         endpoint = "order"
+        # Generate a unique clOrdID with our prefix so we can identify it.
+        clOrdID = self.orderIDPrefix + uuid.uuid4().bytes.encode('base64')
         postdict = {
             'symbol': self.symbol,
             'quantity': quantity,
-            'price': price
+            'price': price,
+            'clOrdID': clOrdID
         }
-        print postdict
         return self._curl_bitmex(api=endpoint, postdict=postdict, verb="POST")
 
     @authentication_required
     def open_orders(self):
         """Get open orders."""
         api = "order"
-        return self._curl_bitmex(
-            api=api, 
+        orders = self._curl_bitmex(
+            api=api,
             query={'filter': json.dumps({'ordStatus.isTerminated': False, 'symbol': self.symbol})},
             verb="GET"
         )
+        # Only return orders that start with our clOrdID prefix.
+        return [o for o in orders if str(o['clOrdID']).startswith(self.orderIDPrefix)]
 
     @authentication_required
     def cancel(self, orderID):
@@ -169,7 +179,6 @@ class BitMEX(object):
             'orderID': orderID,
         }
         return self._curl_bitmex(api=api, postdict=postdict, verb="DELETE")
-
 
     def _curl_bitmex(self, api, query=None, postdict=None, timeout=3, verb=None):
         """Send a request to BitMEX Servers."""
@@ -193,10 +202,7 @@ class BitMEX(object):
 
         # Make the request
         try:
-            req = requests.Request(verb, url, 
-                data=data,
-                auth=auth,
-                params=query)
+            req = requests.Request(verb, url, data=data, auth=auth, params=query)
             prepped = self.session.prepare_request(req)
             response = self.session.send(prepped, timeout=timeout)
             # Make non-200s throw
@@ -205,10 +211,11 @@ class BitMEX(object):
         except requests.exceptions.HTTPError, e:
             # 401 - Auth error. Re-auth and re-run this request.
             if response.status_code == 401:
-                if self.token == None:
+                if self.token is None:
                     print "Login information or API Key incorrect, please check and restart."
                     print "Error: " + response.text
-                    if postdict: print postdict
+                    if postdict:
+                        print postdict
                     exit(1)
                 print "Token expired, reauthenticating..."
                 sleep(1)
@@ -223,7 +230,7 @@ class BitMEX(object):
                 print "Unable to contact the BitMEX API (404). " + \
                     "Request: %s \n %s" % (url, json.dumps(postdict))
                 exit(1)
-                
+
             # 503 - BitMEX temporary downtime, likely due to a deploy. Try again
             elif response.status_code == 503:
                 print "Unable to contact the BitMEX API (503), retrying. " + \

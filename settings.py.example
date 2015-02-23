@@ -42,3 +42,12 @@ MAINTAIN_SPREADS = True
 # it will be resubmitted.
 # 0.01 = 1%
 RELIST_INTERVAL = 0.01
+
+# To uniquely identify orders placed by this bot, the bot sends a ClOrdID (Client order ID) that is attached
+# to each order so its source can be identified. This keeps the market maker from cancelling orders that are
+# manually placed, or orders placed by another bot.
+#
+# If you are running multiple bots on the same symbol, give them unique ORDERID_PREFIXes - otherwise they will
+# cancel each others' orders.
+# Max length is 13 characters.
+ORDERID_PREFIX = "mm_bitmex_"
