@@ -9,17 +9,24 @@ import settings
 import constants
 import errors
 
+
 def timestamp_string():
     return "["+datetime.now().strftime("%I:%M:%S %p")+"]"
+
 
 def XBt_to_XBT(XBt):
     return float(XBt) / constants.XBt_TO_XBT
 
+
 def cost(instrument, quantity, price):
-    return instrument["multiplier"] * price * quantity
+    mult = instrument["multiplier"]
+    P = mult * price if mult >= 0 else mult / price
+    return abs(quantity * P)
+
 
 def margin(instrument, quantity, price):
-    return instrument["multiplier"] * price * quantity * instrument["initMargin"]
+    return cost(instrument, quantity, price) * instrument["initMargin"]
+
 
 class ExchangeInterface:
     def __init__(self, dry_run=False):
@@ -40,7 +47,8 @@ class ExchangeInterface:
         print timestamp_string(), "Cancelling:", order['side'], order['orderQty'], "@", order['price']
         while True:
             try:
-                self.bitmex.cancel(order['orderID']); sleep(1)
+                self.bitmex.cancel(order['orderID'])
+                sleep(1)
             except URLError as e:
                 print e.reason
                 sleep(10)
@@ -56,7 +64,8 @@ class ExchangeInterface:
 
         print "Resetting current position. Cancelling all existing orders."
 
-        trade_data = self.bitmex.open_orders(); sleep(1)
+        trade_data = self.bitmex.open_orders()
+        sleep(1)
         orders = trade_data
 
         for order in orders:
@@ -106,13 +115,13 @@ class ExchangeInterface:
 
         return order
 
+
 class OrderManager:
     def __init__(self):
         self.exchange = ExchangeInterface(settings.DRY_RUN)
-        print "Using symbol %s." % self.exchange.symbol;
+        print "Using symbol %s." % self.exchange.symbol
 
-
-    def init(self): 
+    def init(self):
         if settings.DRY_RUN:
             print "Initializing dry run. Orders printed below represent what would be posted to BitMEX."
         else:
@@ -149,7 +158,7 @@ class OrderManager:
     def get_ticker(self):
         ticker = self.exchange.get_ticker()
         # Set up our buy & sell positions as the smallest possible unit above and below the current spread
-        # and we'll work out from there. That way we always have the best price but we don't kill wide 
+        # and we'll work out from there. That way we always have the best price but we don't kill wide
         # and potentially profitable spreads.
         self.start_position_buy = ticker["buy"] + self.instrument['tickSize']
         self.start_position_sell = ticker["sell"] - self.instrument['tickSize']
@@ -183,10 +192,11 @@ class OrderManager:
         order = self.exchange.place_order(price, quantity, order_type)
         sleep(1)  # Don't hammer the API
         if settings.DRY_RUN is True or order['ordStatus'] != "Rejected":
-            print timestamp_string(), order_type.capitalize() + ":", quantity, \
-                "@", price, "id:", order["orderID"], \
-                "value: %.6f XBT" % XBt_to_XBT(cost(self.instrument, price, quantity)), \
-                "margin: %.6f XBT" % XBt_to_XBT(margin(self.instrument, price, quantity))
+            print timestamp_string(), order_type.capitalize() + ":", quantity, order["symbol"], \
+                "@", price, \
+                "\n             ", \
+                "Gross Value: %.6f XBT" % XBt_to_XBT(cost(self.instrument, quantity, price)), \
+                "Margin Requirement: %.6f XBT" % XBt_to_XBT(margin(self.instrument, quantity, price))
         else:
             print "Order rejected: " + order['ordRejReason']
             sleep(5)  # don't go crazy
@@ -196,7 +206,7 @@ class OrderManager:
     def check_orders(self):
         trade_data = self.exchange.get_trade_data()
 
-        self.get_ticker();
+        self.get_ticker()
         order_ids = [o["orderID"] for o in trade_data["orders"]]
         old_orders = self.orders.copy()
         print_status = False
@@ -204,21 +214,22 @@ class OrderManager:
         for index, order in old_orders.iteritems():
             # If an order fills, reset it
             if order["orderID"] not in order_ids:
-                print "Order filled, relisting: id: %s, price: %.2f, quantity: %d, side: %s" % (order["orderID"], \
-                    order["price"], order["orderQty"], order["side"])
+                print "Order filled, relisting: id: %s, price: %.2f, quantity: %d, side: %s" % \
+                    (order["orderID"], order["price"], order["orderQty"], order["side"])
                 del self.orders[index]
                 self.place_order(index, order["side"])
                 print_status = True
             # If an order drifts (reference price moves), cancel and replace it
             elif self.has_order_drifted(index, order):
-                print "Order drifted, refilling:, id: %s, price: %.2f, quantity: %d, side: %s" % (order["orderID"], \
-                    order["price"], order["orderQty"], order["side"])
+                print "Order drifted, refilling:, id: %s, price: %.2f, quantity: %d, side: %s" % \
+                    (order["orderID"], order["price"], order["orderQty"], order["side"])
                 self.exchange.cancel_order(order)
                 self.place_order(index, order["side"])
 
         if print_status:
             marginBalance = trade_data["margin"]["marginBalance"]
-            print "Profit: %.6f" % XBt_to_XBT(marginBalance - self.start_XBt), "XBT. Run Time:", datetime.now() - self.start_time
+            print "Profit: %.6f" % XBt_to_XBT(marginBalance - self.start_XBt), "XBT. Run Time:", \
+                datetime.now() - self.start_time
 
     # Given an order and its position in the stack, returns a boolean indicating if the reference
     # price has drifted too much and the order needs to be resubmitted.
@@ -244,7 +255,6 @@ class OrderManager:
             self.check_orders()
             sys.stdout.write(".")
             sys.stdout.flush()
-
 
 
 print 'BitMEX Market Maker Version: %s\n' % constants.VERSION
