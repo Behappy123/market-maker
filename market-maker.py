@@ -103,7 +103,7 @@ class ExchangeInterface:
 
     def place_order(self, price, quantity, order_type):
         if settings.DRY_RUN:
-            return {'orderID': 'dry_run_order', 'orderQty': quantity, 'price': price}
+            return {'orderID': 'dry_run_order', 'orderQty': quantity, 'price': price, 'symbol': self.symbol}
 
         if order_type == "Buy":
             order = self.bitmex.buy(quantity, price)
