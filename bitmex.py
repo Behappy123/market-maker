@@ -34,7 +34,6 @@ class BitMEX(object):
         self.session = requests.Session()
         # These headers are always sent
         self.session.headers.update({'user-agent': 'liquidbot-' + constants.VERSION})
-        self.session.headers.update({'content-type': 'application/json'})
 
 # Public methods
     def ticker_data(self):
@@ -189,12 +188,6 @@ class BitMEX(object):
         if not verb:
             verb = 'POST' if postdict else 'GET'
 
-        # Handle data
-        data = None
-        if postdict:
-            # When calculating API Key there must be no spaces in the json
-            data = json.dumps(postdict, separators=(',', ':'))
-
         # Auth: Use Access Token by default, API Key/Secret if provided
         auth = AccessTokenAuth(self.token)
         if self.apiKey:
@@ -202,7 +195,7 @@ class BitMEX(object):
 
         # Make the request
         try:
-            req = requests.Request(verb, url, data=data, auth=auth, params=query)
+            req = requests.Request(verb, url, data=postdict, auth=auth, params=query)
             prepped = self.session.prepare_request(req)
             response = self.session.send(prepped, timeout=timeout)
             # Make non-200s throw
