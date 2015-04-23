@@ -1,4 +1,5 @@
-import urllib, urllib2
+import urllib
+import urllib2
 from time import sleep
 import json
 import constants
@@ -9,8 +10,12 @@ import getpass
 import pprint
 import signal
 
-BITMEX_SITE = "https://testnet.bitmex.com"
-# BITMEX_SITE = "https://www.bitmex.com"
+# Edit this to True if you'd like to create a Testnet key.
+USE_TESTNET = False
+
+BITMEX_TESTNET = "https://testnet.bitmex.com"
+BITMEX_PRODUCTION = "https://www.bitmex.com"
+
 
 def main():
     print "########################"
@@ -20,6 +25,7 @@ def main():
     apiObj = auth()
     while True:
         prompt(apiObj)
+
 
 def prompt(apiObj):
     operations = ['list_keys', 'create_key', 'enable_key', 'disable_key', 'delete_key']
@@ -32,6 +38,7 @@ def prompt(apiObj):
     getattr(apiObj, operation)()
     print "\nOperation completed. Press <ctrl+c> to quit."
 
+
 def auth():
     print "Please log in."
     email = raw_input("Email: ")
@@ -41,12 +48,13 @@ def auth():
     print "\nSuccessfully logged in."
     return apiObj
 
+
 class BitMEX(object):
     def __init__(self, email=None, password=None, otpToken=None):
-        self.base_url = BITMEX_SITE + "/api/v1"
+        self.base_url = (BITMEX_TESTNET if USE_TESTNET else BITMEX_PRODUCTION) + "/api/v1"
         self.accessToken = None
-        self.accessToken = self._curl_bitmex("/user/login", \
-            postdict={"email": email, "password": password, "token": otpToken})["id"]
+        self.accessToken = self._curl_bitmex("/user/login",
+                                             postdict={"email": email, "password": password, "token": otpToken})["id"]
 
     def create_key(self):
         """Create an API key."""
@@ -57,8 +65,8 @@ class BitMEX(object):
         print "To use with a single IP, append '/32', such as 207.39.29.22/32. "
         print "See this reference on CIDR blocks: http://software77.net/cidr-101.html"
         cidr = raw_input("CIDR (optional): ")
-        key = self._curl_bitmex("/apiKey", \
-            postdict={"name": name, "cidr": cidr, "enabled": True})
+        key = self._curl_bitmex("/apiKey",
+                                postdict={"name": name, "cidr": cidr, "enabled": True})
 
         print "Key created. Details:\n"
         print "API Key:    " + key["id"]
@@ -77,8 +85,8 @@ class BitMEX(object):
         print "This command will enable a disabled key."
         apiKeyID = raw_input("API Key ID: ")
         try:
-            key = self._curl_bitmex("/apiKey/enable", \
-                postdict={"apiKeyID": apiKeyID})
+            key = self._curl_bitmex("/apiKey/enable",
+                                    postdict={"apiKeyID": apiKeyID})
             print "Key with ID %s enabled." % key["id"]
         except:
             print "Unable to enable key, please try again."
@@ -89,8 +97,8 @@ class BitMEX(object):
         print "This command will disable a enabled key."
         apiKeyID = raw_input("API Key ID: ")
         try:
-            key = self._curl_bitmex("/apiKey/disable", \
-                postdict={"apiKeyID": apiKeyID})
+            key = self._curl_bitmex("/apiKey/disable",
+                                    postdict={"apiKeyID": apiKeyID})
             print "Key with ID %s disabled." % key["id"]
         except:
             print "Unable to disable key, please try again."
@@ -101,8 +109,8 @@ class BitMEX(object):
         print "This command will delete an API key."
         apiKeyID = raw_input("API Key ID: ")
         try:
-            self._curl_bitmex("/apiKey/", \
-                postdict={"apiKeyID": apiKeyID}, verb='DELETE')
+            self._curl_bitmex("/apiKey/",
+                              postdict={"apiKeyID": apiKeyID}, verb='DELETE')
             print "Key with ID %s disabled." % apiKeyID
         except:
             print "Unable to delete key, please try again."
@@ -147,6 +155,7 @@ class BitMEX(object):
             exit(1)
 
         return json.loads(response.read())
+
 
 def signal_handler(signal, frame):
     print('\nExiting...')
