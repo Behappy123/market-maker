@@ -37,7 +37,7 @@ MIN_SPREAD = 0.01
 MAINTAIN_SPREADS = True
 
 # Each order is designed to be (INTERVAL*n)% away from the spread.
-# If the spread changes and the order has moved outside its bound defined as 
+# If the spread changes and the order has moved outside its bound defined as
 # (INTERVAL*n) - RELIST_INTERVAL < current_spread < (INTERVAL*n) + RELIST+INTERVAL
 # it will be resubmitted.
 # 0.01 = 1%
@@ -51,3 +51,6 @@ RELIST_INTERVAL = 0.01
 # cancel each others' orders.
 # Max length is 13 characters.
 ORDERID_PREFIX = "mm_bitmex_"
+
+# If any of these files (and this file) changes, reload the bot.
+WATCHED_FILES = ["market-maker.py", "bitmex.py", __file__]

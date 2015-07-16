@@ -9,6 +9,9 @@ import settings
 import constants
 import errors
 
+# Used for reloading the bot - saves modified times of key files
+watched_files_mtimes = [(f, getmtime(f)) for f in settings.WATCHED_FILES]
+
 
 def timestamp_string():
     return "["+datetime.now().strftime("%I:%M:%S %p")+"]"
@@ -251,10 +254,18 @@ class OrderManager:
 
     def run_loop(self):
         while True:
+            for f, mtime in watched_files_mtimes:
+                 if getmtime(f) > mtime:
+                    print "File change detected."
+                    self.restart()
             sleep(60)
             self.check_orders()
             sys.stdout.write(".")
             sys.stdout.flush()
+
+    def restart(self):
+        print "Restarting the market maker..."
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
 
 print 'BitMEX Market Maker Version: %s\n' % constants.VERSION
