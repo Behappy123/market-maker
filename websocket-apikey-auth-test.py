@@ -10,20 +10,22 @@ import json, base64, hashlib, urlparse, hmac, time
 ###
 
 # These are not real keys - replace them with your keys.
-API_KEY="CfwQ4SZ6gM_t6dIy1bCLJylX"
-API_SECRET="f9XOPLacPCZJ1dvPzN8B6Et7nMEaPGeomMSHk8Cr2zD4NfCY"
+API_KEY = "CfwQ4SZ6gM_t6dIy1bCLJylX"
+API_SECRET = "f9XOPLacPCZJ1dvPzN8B6Et7nMEaPGeomMSHk8Cr2zD4NfCY"
 
 # Switch these comments to use testnet instead.
-# BITMEX_URL="wss://testnet.bitmex.com"
-BITMEX_URL="wss://www.bitmex.com"
+# BITMEX_URL = "wss://testnet.bitmex.com"
+BITMEX_URL = "wss://www.bitmex.com"
 
-VERB="GET"
-ENDPOINT="/realtime"
+VERB = "GET"
+ENDPOINT = "/realtime"
+
 
 def main():
     """Authenticate with the BitMEX API & request account information."""
     test_with_message()
     test_with_querystring()
+
 
 def test_with_message():
     # This is up to you, most use microtime but you may have your own scheme so long as it's increasing
@@ -39,7 +41,7 @@ def test_with_message():
     print "Received '%s'" % result
 
     # Send API Key with signed message.
-    request = {"op": "authKey", "args": [API_KEY, nonce, signature]};
+    request = {"op": "authKey", "args": [API_KEY, nonce, signature]}
     ws.send(json.dumps(request))
     print "Sent Auth request"
     result = ws.recv()
@@ -56,6 +58,7 @@ def test_with_message():
 
     ws.close()
 
+
 def test_with_querystring():
     # This is up to you, most use microtime but you may have your own scheme so long as it's increasing
     # and doesn't repeat.
@@ -64,8 +67,8 @@ def test_with_querystring():
     signature = bitmex_signature(API_SECRET, VERB, ENDPOINT, nonce)
 
     # Initial connection - BitMEX sends a welcome message.
-    ws = create_connection(BITMEX_URL + ENDPOINT + \
-        "?api-nonce=%s&api-signature=%s&api-key=%s" % (nonce, signature, API_KEY))
+    ws = create_connection(BITMEX_URL + ENDPOINT +
+                           "?api-nonce=%s&api-signature=%s&api-key=%s" % (nonce, signature, API_KEY))
     print "Receiving Welcome Message..."
     result = ws.recv()
     print "Received '%s'" % result
@@ -80,6 +83,7 @@ def test_with_querystring():
     print "Received '%s'" % result
 
     ws.close()
+
 
 # Generates an API signature.
 # A signature is HMAC_SHA256(secret, verb + path + nonce + data), base64 encoded.
