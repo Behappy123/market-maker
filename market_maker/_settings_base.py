@@ -1,3 +1,5 @@
+from os.path import join
+
 # API URL.
 BASE_URL = "https://www.bitmex.com/api/v1/"
 
@@ -16,6 +18,13 @@ SYMBOL = "XBTP14"
 # If true, don't set up any orders, just say what we would do
 #DRY_RUN = True
 DRY_RUN = False
+
+# How often to re-check the orderbook and replace orders
+LOOP_INTERVAL = 60
+
+# Wait times between orders / errors
+API_REST_INTERVAL = 1
+API_ERROR_INTERVAL = 10
 
 # If we're doing a dry run, use these numbers for BTC balances
 DRY_BTC = 50
@@ -53,4 +62,4 @@ RELIST_INTERVAL = 0.01
 ORDERID_PREFIX = "mm_bitmex_"
 
 # If any of these files (and this file) changes, reload the bot.
-WATCHED_FILES = ["market-maker.py", "bitmex.py", __file__]
+WATCHED_FILES = [join("market_maker", f) for f in ["market_maker.py", "bitmex.py", __file__]]

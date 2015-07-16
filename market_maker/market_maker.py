@@ -1,18 +1,22 @@
-# -*- coding: utf-8 -*-
 import bitmex
 from time import sleep
 import sys
 from urllib2 import URLError
 from datetime import datetime
+from os.path import getmtime
 
 import settings
 import constants
 import errors
 
 # Used for reloading the bot - saves modified times of key files
+import os
+print os.getcwd()
 watched_files_mtimes = [(f, getmtime(f)) for f in settings.WATCHED_FILES]
 
-
+#
+# Helpers
+#
 def timestamp_string():
     return "["+datetime.now().strftime("%I:%M:%S %p")+"]"
 
@@ -51,13 +55,13 @@ class ExchangeInterface:
         while True:
             try:
                 self.bitmex.cancel(order['orderID'])
-                sleep(1)
+                sleep(settings.API_REST_INTERVAL)
             except URLError as e:
                 print e.reason
-                sleep(10)
+                sleep(settings.API_ERROR_INTERVAL)
             except ValueError as e:
                 print e
-                sleep(10)
+                sleep(settings.API_ERROR_INTERVAL)
             else:
                 break
 
@@ -68,7 +72,7 @@ class ExchangeInterface:
         print "Resetting current position. Cancelling all existing orders."
 
         trade_data = self.bitmex.open_orders()
-        sleep(1)
+        sleep(settings.API_REST_INTERVAL)
         orders = trade_data
 
         for order in orders:
@@ -92,13 +96,13 @@ class ExchangeInterface:
                 try:
                     orders = self.bitmex.open_orders()
                     margin = self.bitmex.funds()
-                    sleep(1)
+                    sleep(settings.API_REST_INTERVAL)
                 except URLError as e:
                     print e.reason
-                    sleep(10)
+                    sleep(settings.API_ERROR_INTERVAL)
                 except ValueError as e:
                     print e
-                    sleep(10)
+                    sleep(settings.API_ERROR_INTERVAL)
                 else:
                     break
 
@@ -193,7 +197,7 @@ class OrderManager:
         price = position
 
         order = self.exchange.place_order(price, quantity, order_type)
-        sleep(1)  # Don't hammer the API
+        sleep(settings.API_REST_INTERVAL)  # Don't hammer the API
         if settings.DRY_RUN is True or order['ordStatus'] != "Rejected":
             print timestamp_string(), order_type.capitalize() + ":", quantity, order["symbol"], \
                 "@", price, \
@@ -258,7 +262,7 @@ class OrderManager:
                  if getmtime(f) > mtime:
                     print "File change detected."
                     self.restart()
-            sleep(60)
+            sleep(settings.LOOP_INTERVAL)
             self.check_orders()
             sys.stdout.write(".")
             sys.stdout.flush()

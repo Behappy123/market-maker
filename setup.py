@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
-from os.path import dirname, join
+from os.path import dirname, join, isfile
+from shutil import copyfile
 
 here = dirname(__file__)
 
@@ -16,4 +17,6 @@ setup(name='bitmex-market-maker',
       ]
      )
 
-print "\n**** \nImportant!!!\nCopy settings.py.example to settings.py and edit before starting the bot.\n****"
+if not isfile('settings.py'):
+  copyfile(join('market_maker', '_settings_base.py'), 'settings.py')
+print "\n**** \nImportant!!!\nEdit settings.py before starting the bot.\n****"

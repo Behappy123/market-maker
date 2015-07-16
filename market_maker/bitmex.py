@@ -6,8 +6,8 @@ import constants
 import errors
 import math
 import uuid
-from AccessTokenAuth import AccessTokenAuth
-from APIKeyAuthWithExpires import APIKeyAuthWithExpires
+from auth import AccessTokenAuth
+from auth import APIKeyAuthWithExpires
 
 
 # https://www.bitmex.com/api/explorer/
