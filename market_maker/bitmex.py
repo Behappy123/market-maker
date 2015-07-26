@@ -142,6 +142,18 @@ class BitMEX(object):
         return self.ws.open_orders(self.orderIDPrefix)
 
     @authentication_required
+    def http_open_orders(self):
+        """Get open orders via HTTP. Used on close to ensure we catch them all."""
+        api = "order"
+        orders = self._curl_bitmex(
+            api=api,
+            query={'filter': json.dumps({'ordStatus.isTerminated': False, 'symbol': self.symbol})},
+            verb="GET"
+        )
+        # Only return orders that start with our clOrdID prefix.
+        return [o for o in orders if str(o['clOrdID']).startswith(self.orderIDPrefix)]
+
+    @authentication_required
     def cancel(self, orderID):
         """Cancel an existing order."""
         api = "order"

@@ -72,15 +72,17 @@ class ExchangeInterface:
 
         logger.info("Resetting current position. Cancelling all existing orders.")
 
-        trade_data = self.bitmex.open_orders()
-        sleep(settings.API_REST_INTERVAL)
-        orders = trade_data
+        # In certain cases, a WS update might not make it through before we call this.
+        # For that reason, we grab via HTTP to ensure we grab them all.
+        orders = self.bitmex.http_open_orders()
 
         for order in orders:
             logger.info("Cancelling: %s %d @ %.2f" % (order['side'], order['orderQty'], order['price']))
 
         if len(orders):
             self.bitmex.cancel([order['orderID'] for order in orders])
+
+        sleep(settings.API_REST_INTERVAL)
 
     def get_instrument(self):
         return self.bitmex.get_instrument()
