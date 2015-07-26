@@ -186,6 +186,9 @@ class BitMEXWebsocket():
                     for updateData in message['data']:
                         item = findItemByKeys(self.keys[table], self.data[table], updateData)
                         item.update(updateData)
+                        # Remove cancelled / filled orders
+                        if table == 'order' and item['leavesQty'] <= 0:
+                            self.data[table].remove(item)
                 elif action == 'delete':
                     self.logger.debug('%s: deleting %s' % (table, message['data']))
                     # Locate the item in the collection and remove it.
