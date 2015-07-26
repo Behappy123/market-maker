@@ -1,6 +1,7 @@
 import sys
 import websocket
 import threading
+import traceback
 from time import sleep
 import settings
 import json
@@ -78,7 +79,8 @@ class BitMEXWebsocket():
 
     def open_orders(self, clOrdIDPrefix):
         orders = self.data['order']
-        return [o for o in orders if str(o['clOrdID']).startswith(clOrdIDPrefix)]
+        # Filter to only open orders (leavesQty > 0) and those that we actually placed
+        return [o for o in orders if str(o['clOrdID']).startswith(clOrdIDPrefix) and o['leavesQty'] > 0]
 
     def recent_trades(self):
         return self.data['trade']
@@ -152,37 +154,51 @@ class BitMEXWebsocket():
 
         table = message['table'] if 'table' in message else None
         action = message['action'] if 'action' in message else None
-        if 'subscribe' in message:
-            self.logger.debug("Subscribed to %s." % message['subscribe'])
-        if action:
-            # There are four possible actions from the WS:
-            # 'partial' - full table image
-            # 'insert'  - new row
-            # 'update'  - update row
-            # 'delete'  - delete row
-            if action == 'partial':
-                self.logger.debug("Got partial for %s" % table)
+        try:
+            if 'subscribe' in message:
+                self.logger.debug("Subscribed to %s." % message['subscribe'])
+            elif action:
+
                 # Create a deque object so we can just simply keep appendleft()ing new data without
                 # having to worry about popping it off. Newest data is always at the head.
-                self.data[table] = collections.deque(message['data'], 10)
-                # Keys are communicated on partials to let you know how to uniquely identify
-                # an item. We use it for updates.
-                self.keys[table] = message['keys']
-            elif action == 'insert':
-                # Reverse while extending because extendleft reverses order
-                self.data[table].extendleft(message['data'].reverse())
-            elif action == 'update':
-                # Locate the item in the collection and update it.
-                for updateData in message['data']:
-                    item = findItemByKeys(self.keys[table], self.data[table], updateData)
-                    item.update(updateData)
-            elif action == 'delete':
-                # Locate the item in the collection and remove it.
-                for deleteData in message['data']:
-                    item = findItemByKeys(self.keys[table], self.data[table], deleteData)
-                    self.data[table].remove(item)
+                if table not in self.data:
+                    self.data[table] = collections.deque([], settings.ORDER_PAIRS * 2)
+
+                # There are four possible actions from the WS:
+                # 'partial' - full table image
+                # 'insert'  - new row
+                # 'update'  - update row
+                # 'delete'  - delete row
+                if action == 'partial':
+                    self.logger.debug("%s: partial" % table)
+                    # Reverse while extending because extendleft reverses order
+                    self.data[table].extendleft(message['data'][::-1])
+                    # Keys are communicated on partials to let you know how to uniquely identify
+                    # an item. We use it for updates.
+                    self.keys[table] = message['keys']
+                elif action == 'insert':
+                    self.logger.debug('%s: inserting %s' % (table, message['data']))
+                    # Reverse while extending because extendleft reverses order
+                    self.data[table].extendleft(message['data'][::-1])
+                elif action == 'update':
+                    self.logger.debug('%s: updating %s' % (table, message['data']))
+                    # Locate the item in the collection and update it.
+                    for updateData in message['data']:
+                        item = findItemByKeys(self.keys[table], self.data[table], updateData)
+                        item.update(updateData)
+                elif action == 'delete':
+                    self.logger.debug('%s: deleting %s' % (table, message['data']))
+                    # Locate the item in the collection and remove it.
+                    for deleteData in message['data']:
+                        item = findItemByKeys(self.keys[table], self.data[table], deleteData)
+                        self.data[table].remove(item)
+                else:
+                    raise Exception("Unknown action: %s" % action)
+        except:
+            self.logger.error(traceback.format_exc())
 
     def __on_error(self, ws, error):
+        print error
         self.logger.error("### Error : %s" % error)
 
     def __on_open(self, ws):
