@@ -207,6 +207,14 @@ class BitMEX(object):
                                   "Request: %s \n %s" % (url, json.dumps(postdict)))
                 exit(1)
 
+            # 429, ratelimit
+            elif response.status_code == 429:
+                self.logger.error("Ratelimited on current request. Sleeping, then trying again. Try fewer " +
+                                  "order pairs or contact support@bitmex.com to raise your limits. " +
+                                  "Request: %s \n %s" % (url, json.dumps(postdict)))
+                sleep(1)
+                return self._curl_bitmex(api, query, postdict, timeout, verb)
+
             # 503 - BitMEX temporary downtime, likely due to a deploy. Try again
             elif response.status_code == 503:
                 self.logger.warning("Unable to contact the BitMEX API (503), retrying. " +
