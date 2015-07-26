@@ -95,19 +95,8 @@ class ExchangeInterface:
             margin = {'marginBalance': float(settings.DRY_BTC), 'availableFunds': float(settings.DRY_BTC)}
             orders = []
         else:
-            while True:
-                try:
-                    orders = self.bitmex.open_orders()
-                    margin = self.bitmex.funds()
-                    sleep(settings.API_REST_INTERVAL)
-                except URLError as e:
-                    logger.info(e.reason)
-                    sleep(settings.API_ERROR_INTERVAL)
-                except ValueError as e:
-                    logger.info(e)
-                    sleep(settings.API_ERROR_INTERVAL)
-                else:
-                    break
+            orders = self.bitmex.open_orders()
+            margin = self.bitmex.funds()
 
         return {"margin": margin, "orders": orders}
 
@@ -256,7 +245,7 @@ class OrderManager:
     def exit(self):
         try:
             self.exchange.cancel_all_orders()
-            self.bitmex.ws.exit()
+            self.exchange.bitmex.ws.exit()
         except errors.AuthenticationError, e:
             logger.info("Was not authenticated; could not cancel orders.")
         except Exception as e:
