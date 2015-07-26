@@ -48,6 +48,7 @@ class BitMEXWebsocket():
         self.logger.info('Got all market data. Starting.')
 
     def exit(self):
+        self.exited = True
         self.ws.close()
 
     def get_instrument(self):
@@ -201,14 +202,14 @@ class BitMEXWebsocket():
             self.logger.error(traceback.format_exc())
 
     def __on_error(self, ws, error):
-        print error
-        self.logger.error("### Error : %s" % error)
+        if not self.exited:
+            self.logger.error("Error : %s" % error)
 
     def __on_open(self, ws):
         self.logger.debug("Websocket Opened.")
 
     def __on_close(self, ws):
-        self.logger.error('### Closed ###')
+        self.logger.info('Websocket Closed')
 
     def __reset(self, symbol):
         self.data = {}
