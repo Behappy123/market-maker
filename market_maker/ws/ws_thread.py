@@ -23,7 +23,7 @@ from market_maker.auth.APIKeyAuth import generate_nonce, generate_signature
 # poll really often if it wants.
 class BitMEXWebsocket():
 
-    def __init__(self, endpoint="http://localhost:3000/api/v1", symbol="XBTN15"):
+    def __init__(self, endpoint="", symbol="XBTN15"):
         '''Connect to the websocket and initialize data stores.'''
         self.logger = logging.getLogger('root')
         self.logger.debug("Initializing WebSocket.")
@@ -232,6 +232,6 @@ if __name__ == "__main__":
     # add formatter to ch
     ch.setFormatter(formatter)
     logger.addHandler(ch)
-    ws = BitMEXWebsocket("http://localhost:3000/api/v1")
+    ws = BitMEXWebsocket("https://testnet.bitmex.com/api/v1")
     while(ws.ws.sock.connected):
         sleep(1)
