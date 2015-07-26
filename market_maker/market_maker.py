@@ -132,6 +132,8 @@ class OrderManager:
 
     def reset(self):
         self.exchange.cancel_all_orders()
+        # We keep our own orders cache that allows us to reconcile what the exchange says we have open,
+        # and what we believed we had open.
         self.orders = {}
 
         ticker = self.get_ticker()
