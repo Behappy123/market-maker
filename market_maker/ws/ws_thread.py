@@ -1,3 +1,4 @@
+import sys
 import websocket
 import threading
 from time import sleep
@@ -5,6 +6,10 @@ import settings
 import json
 import string
 import logging
+import collections
+import urlparse
+import math
+
 
 # Naive implementation of connecting to BitMEX websocket for streaming realtime data.
 # The Marketmaker still interacts with this as if it were a REST Endpoint, but now it can get
@@ -16,85 +21,175 @@ import logging
 # poll really often if it wants.
 class BitMEXWebsocket():
 
-    def __init__(self, endpoint="ws://localhost:3000/realtime", symbol="XBTN15"):
-        self.logger = logging.getLogger()
-        self.logger.debug("Initializing WebSocket.");
-        self.reset(symbol)
-        self.connect(endpoint, symbol)
-        self.logger.info('Connected to WS.')
-        # Connected. Push symbols
-        self.getAccount()
-        self.getSymbol(symbol)
-        self.logger.info('Got all push data.')
+    def __init__(self, endpoint="http://localhost:3000/api/v1", symbol="XBTN15"):
+        '''Connect to the websocket and initialize data stores.'''
+        self.logger = logging.getLogger('root')
+        self.logger.debug("Initializing WebSocket.")
 
-        while self.ws.sock.connected:
-            sleep(1)
+        self.__reset(symbol)
 
-    def connect(self, endpoint, symbol):
+        # We can subscribe right in the connection querystring, so let's build that.
         # Subscribe to all pertinent endpoints
-        subscriptions = [sub + ':' + symbol for sub in ["order", "execution", "instrument", "position"]]
+        subscriptions = [sub + ':' + symbol for sub in ["order", "execution", "position", "quote", "trade"]]
         subscriptions += ["margin"]
+        urlParts = list(urlparse.urlparse(endpoint))
+        urlParts[0] = urlParts[0].replace('http', 'ws')
+        urlParts[2] = "/realtime?subscribe=" + string.join(subscriptions, ",")
+        wsURL = urlparse.urlunparse(urlParts)
+        self.logger.info("Connecting to %s" % wsURL)
+        self.__connect(wsURL, symbol)
+        self.logger.info('Connected to WS.')
 
-        # We can pre-subscribe using the querystring
-        wsURL = endpoint + "?subscribe=" + string.join(subscriptions, ",")
+        # Connected. Push symbols
+        self.__push_account()
+        self.__push_symbol(symbol)
+        self.logger.info('Got all market data. Starting.')
+
+    def exit(self):
+        self.ws.close()
+
+    def get_instrument(self):
+        # Turn the 'tickSize' into 'tickLog' for use in rounding
+        instrument = self.data['instrument'][0]
+        instrument['tickLog'] = int(math.fabs(math.log10(instrument['tickSize'])))
+        return instrument
+
+    def get_ticker(self):
+        '''Return a ticker object. Generated from quote and trade.'''
+        lastQuote = self.data['quote'][0]
+        lastTrade = self.data['trade'][0]
+        ticker = {
+            "last": lastTrade['price'],
+            "buy": lastQuote['bidPrice'],
+            "sell": lastQuote['askPrice'],
+            "mid": (float(lastQuote['bidPrice'] or 0) + float(lastQuote['askPrice'] or 0)) / 2
+        }
+
+        # The instrument has a tickSize. Use it to round values.
+        instrument = self.data['instrument'][0]
+        return {k: round(float(v or 0), instrument['tickLog']) for k, v in ticker.iteritems()}
+
+    def funds(self):
+        return self.data['margin'][0]
+
+    def market_depth(self):
+        return self.data['orderBook25']
+
+    def open_orders(self, clOrdIDPrefix):
+        orders = self.data['order']
+        return [o for o in orders if str(o['clOrdID']).startswith(clOrdIDPrefix)]
+
+    def recent_trades(self):
+        return self.data['trade']
+
+    def __connect(self, wsURL, symbol):
+        '''Connect to the websocket in a thread.'''
+        self.logger.debug("Starting thread")
+
         self.ws = websocket.WebSocketApp(wsURL,
-                                         on_message = self._on_message,
-                                         on_close = self._on_close,
+                                         on_message=self.__on_message,
+                                         on_close=self.__on_close,
+                                         on_open=self.__on_open,
+                                         on_error=self.__on_error,
                                          # We can login using email/pass or API key
                                          # TODO implement API Key
-                                         header = [
-                                            "email: " + settings.LOGIN,
-                                            "password: " + settings.PASSWORD
+                                         header=[
+                                             "email: " + settings.LOGIN,
+                                             "password: " + settings.PASSWORD
                                          ])
-        self.wst = threading.Thread(target=self.ws.run_forever)
+        self.wst = threading.Thread(target=lambda: self.ws.run_forever())
         self.wst.daemon = True
         self.wst.start()
-
-        self.logger.debug("Starting thread")
+        self.logger.debug("Started thread")
 
         # Wait for connect before continuing
         conn_timeout = 5
         while not self.ws.sock or not self.ws.sock.connected and conn_timeout:
             sleep(1)
             conn_timeout -= 1
+        if not conn_timeout:
+            self.logger.error("Couldn't connect to WS! Exiting.")
+            self.exit()
+            sys.exit(1)
 
-    def getAccount(self):
-        self._send_command("getAccount")
-        while not self.margin:
+    def __push_account(self):
+        '''Ask the websocket for an account push. Gets margin, positions, and open orders'''
+        self.__send_command("getAccount")
+        while 'margin' not in self.data:
             sleep(0.1)
 
-    def getSymbol(self, symbol):
-        self._send_command("getSymbol", symbol);
-        while not self.instrument:
+    def __push_symbol(self, symbol):
+        '''Ask the websocket for a symbol push. Gets instrument, orderBook, quote, and trade'''
+        self.__send_command("getSymbol", symbol)
+        while 'instrument' not in self.data:
             sleep(0.1)
 
-    def _send_command(self, command, args=[]):
-        self.ws.send(json.dumps({"op": command, "args": args}));
+    def __send_command(self, command, args=[]):
+        '''Send a raw command.'''
+        self.ws.send(json.dumps({"op": command, "args": args}))
 
-    def _on_message(self, ws, message):
+    def __on_message(self, ws, message):
+        '''Handler for parsing WS messages.'''
         message = json.loads(message)
         self.logger.debug(json.dumps(message))
+
+        table = message['table'] if 'table' in message else None
+        action = message['action'] if 'action' in message else None
         if 'subscribe' in message:
             self.logger.debug("Subscribed to %s." % message['subscribe'])
-        if 'action' in message and message['action'] == "partial":
-            self.logger.debug("Got partial for %s" % message['table'])
-            setattr(self, message['table'], message['data'])
+        if action:
+            # There are four possible actions from the WS:
+            # 'partial' - full table image
+            # 'insert'  - new row
+            # 'update'  - update row
+            # 'delete'  - delete row
+            if action == 'partial':
+                self.logger.debug("Got partial for %s" % table)
+                # Create a deque object so we can just simply keep appendleft()ing new data without
+                # having to worry about popping it off. Newest data is always at the head.
+                self.data[table] = collections.deque(message['data'], 10)
+                # Keys are communicated on partials to let you know how to uniquely identify
+                # an item. We use it for updates.
+                self.keys[table] = message['keys']
+            elif action == 'insert':
+                # Reverse while extending because extendleft reverses order
+                self.data[table].extendleft(message['data'].reverse())
+            elif action == 'update':
+                # Locate the item in the collection and update it.
+                for updateData in message['data']:
+                    item = findItemByKeys(self.keys[table], self.data[table], updateData)
+                    item.update(updateData)
+            elif action == 'delete':
+                # Locate the item in the collection and remove it.
+                for deleteData in message['data']:
+                    item = findItemByKeys(self.keys[table], self.data[table], deleteData)
+                    self.data[table].remove(item)
 
-    def _on_error(self, ws, error):
+    def __on_error(self, ws, error):
         self.logger.error("### Error : %s" % error)
 
-    def _on_close(self, ws):
+    def __on_open(self, ws):
+        self.logger.debug("Websocket Opened.")
+
+    def __on_close(self, ws):
         self.logger.error('### Closed ###')
 
-    def reset(self, symbol):
+    def __reset(self, symbol):
+        self.data = {}
+        self.keys = {}
         self.symbol = symbol
-        self.instrument = None
-        self.orders = None
-        self.margin = None
-        self.position = None
 
 
-if __name__ == "__main__" :
+def findItemByKeys(keys, table, matchData):
+    for item in table:
+        matched = True
+        for key in keys:
+            if item[key] != matchData[key]:
+                matched = False
+        if matched:
+            return item
+
+if __name__ == "__main__":
     # create console handler and set level to debug
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
@@ -104,5 +199,6 @@ if __name__ == "__main__" :
     # add formatter to ch
     ch.setFormatter(formatter)
     logger.addHandler(ch)
-    websocket.enableTrace(False)
-    ws = BitMEXWebsocket()
+    ws = BitMEXWebsocket("http://localhost:3000/api/v1")
+    while(ws.ws.sock.connected):
+        sleep(1)

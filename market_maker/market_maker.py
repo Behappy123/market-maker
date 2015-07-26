@@ -1,24 +1,25 @@
-import bitmex
 from time import sleep
 import sys
 from urllib2 import URLError
 from datetime import datetime
 from os.path import getmtime
+import string
 
+import bitmex
+import log
 import settings
 import constants
 import errors
 
 # Used for reloading the bot - saves modified times of key files
 import os
-print os.getcwd()
 watched_files_mtimes = [(f, getmtime(f)) for f in settings.WATCHED_FILES]
+
 
 #
 # Helpers
 #
-def timestamp_string():
-    return "["+datetime.now().strftime("%I:%M:%S %p")+"]"
+logger = log.setup_custom_logger('root')
 
 
 def XBt_to_XBT(XBt):
@@ -51,16 +52,16 @@ class ExchangeInterface:
             self.bitmex.authenticate()
 
     def cancel_order(self, order):
-        print timestamp_string(), "Cancelling:", order['side'], order['orderQty'], "@", order['price']
+        logger.info("Cancelling: %s %d @ %.2f" % (order['side'], order['orderQty'], "@", order['price']))
         while True:
             try:
                 self.bitmex.cancel(order['orderID'])
                 sleep(settings.API_REST_INTERVAL)
             except URLError as e:
-                print e.reason
+                logger.info(e.reason)
                 sleep(settings.API_ERROR_INTERVAL)
             except ValueError as e:
-                print e
+                logger.info(e)
                 sleep(settings.API_ERROR_INTERVAL)
             else:
                 break
@@ -69,14 +70,14 @@ class ExchangeInterface:
         if self.dry_run:
             return
 
-        print "Resetting current position. Cancelling all existing orders."
+        logger.info("Resetting current position. Cancelling all existing orders.")
 
         trade_data = self.bitmex.open_orders()
         sleep(settings.API_REST_INTERVAL)
         orders = trade_data
 
         for order in orders:
-            print timestamp_string(), "Cancelling:", order['side'], order['orderQty'], "@", order['price']
+            logger.info("Cancelling: %s %d @ %.2f" % (order['side'], order['orderQty'], order['price']))
 
         if len(orders):
             self.bitmex.cancel([order['orderID'] for order in orders])
@@ -98,10 +99,10 @@ class ExchangeInterface:
                     margin = self.bitmex.funds()
                     sleep(settings.API_REST_INTERVAL)
                 except URLError as e:
-                    print e.reason
+                    logger.info(e.reason)
                     sleep(settings.API_ERROR_INTERVAL)
                 except ValueError as e:
-                    print e
+                    logger.info(e)
                     sleep(settings.API_ERROR_INTERVAL)
                 else:
                     break
@@ -117,7 +118,7 @@ class ExchangeInterface:
         elif order_type == "Sell":
             order = self.bitmex.sell(quantity, price)
         else:
-            print "Invalid order type"
+            logger.error("Invalid order type")
             exit()
 
         return order
@@ -126,13 +127,13 @@ class ExchangeInterface:
 class OrderManager:
     def __init__(self):
         self.exchange = ExchangeInterface(settings.DRY_RUN)
-        print "Using symbol %s." % self.exchange.symbol
+        logger.info("Using symbol %s." % self.exchange.symbol)
 
     def init(self):
         if settings.DRY_RUN:
-            print "Initializing dry run. Orders printed below represent what would be posted to BitMEX."
+            logger.info("Initializing dry run. Orders printed below represent what would be posted to BitMEX.")
         else:
-            print "Order Manager initializing, connecting to BitMEX. Live run: executing real trades."
+            logger.info("Order Manager initializing, connecting to BitMEX. Live run: executing real trades.")
         self.exchange.authenticate()
         self.start_time = datetime.now()
         self.instrument = self.exchange.get_instrument()
@@ -146,13 +147,13 @@ class OrderManager:
 
         trade_data = self.exchange.get_trade_data()
         self.start_XBt = trade_data["margin"]["marginBalance"]
-        print timestamp_string(), "Current XBT Balance: %.6f" % XBt_to_XBT(self.start_XBt)
+        logger.info("Current XBT Balance: %.6f" % XBt_to_XBT(self.start_XBt))
 
         # Sanity check:
         if self.get_position(-1) >= ticker["sell"] or self.get_position(1) <= ticker["buy"]:
-            print self.start_position
-            print self.get_position(-1), ticker["sell"], self.get_position(1), ticker["buy"]
-            print "Sanity check failed, exchange data is screwy"
+            logger.error(self.start_position)
+            logger.error("%s %s %s %s" % (self.get_position(-1), ticker["sell"], self.get_position(1), ticker["buy"]))
+            logger.error("Sanity check failed, exchange data is screwy")
             exit()
 
         for i in range(1, settings.ORDER_PAIRS + 1):
@@ -177,7 +178,7 @@ class OrderManager:
 
         # Midpoint, used for simpler order placement.
         self.start_position_mid = ticker["mid"]
-        print timestamp_string(), 'Current Ticker:', ticker
+        logger.info('Current Ticker: %s' % ticker)
         return ticker
 
     def get_position(self, index):
@@ -188,7 +189,7 @@ class OrderManager:
             index = index + 1 if index < 0 else index - 1
         else:
             start_position = self.start_position_mid
-        return round(start_position * (1+settings.INTERVAL)**index, self.instrument['tickLog'])
+        return round(start_position * (1 + settings.INTERVAL)**index, self.instrument['tickLog'])
 
     def place_order(self, index, order_type):
         position = self.get_position(index)
@@ -199,13 +200,15 @@ class OrderManager:
         order = self.exchange.place_order(price, quantity, order_type)
         sleep(settings.API_REST_INTERVAL)  # Don't hammer the API
         if settings.DRY_RUN is True or order['ordStatus'] != "Rejected":
-            print timestamp_string(), order_type.capitalize() + ":", quantity, order["symbol"], \
-                "@", price, \
-                "\n             ", \
-                "Gross Value: %.6f XBT" % XBt_to_XBT(cost(self.instrument, quantity, price)), \
+            msg = [
+                "\n   " + order_type.capitalize() + ":", str(quantity), order["symbol"],
+                "@", str(price),
+                "Gross Value: %.6f XBT" % XBt_to_XBT(cost(self.instrument, quantity, price)),
                 "Margin Requirement: %.6f XBT" % XBt_to_XBT(margin(self.instrument, quantity, price))
+            ]
+            logger.info(string.join(msg))
         else:
-            print "Order rejected: " + order['ordRejReason']
+            logger.info("Order rejected: " + order['ordRejReason'])
             sleep(5)  # don't go crazy
 
         self.orders[index] = order
@@ -221,22 +224,22 @@ class OrderManager:
         for index, order in old_orders.iteritems():
             # If an order fills, reset it
             if order["orderID"] not in order_ids:
-                print "Order filled, relisting: id: %s, price: %.2f, quantity: %d, side: %s" % \
-                    (order["orderID"], order["price"], order["orderQty"], order["side"])
+                logger.info("Order filled, relisting: id: %s, price: %.2f, quantity: %d, side: %s" %
+                            (order["orderID"], order["price"], order["orderQty"], order["side"]))
                 del self.orders[index]
                 self.place_order(index, order["side"])
                 print_status = True
             # If an order drifts (reference price moves), cancel and replace it
             elif self.has_order_drifted(index, order):
-                print "Order drifted, refilling:, id: %s, price: %.2f, quantity: %d, side: %s" % \
-                    (order["orderID"], order["price"], order["orderQty"], order["side"])
+                logger.info("Order drifted, refilling:, id: %s, price: %.2f, quantity: %d, side: %s" %
+                            (order["orderID"], order["price"], order["orderQty"], order["side"]))
                 self.exchange.cancel_order(order)
                 self.place_order(index, order["side"])
 
         if print_status:
             marginBalance = trade_data["margin"]["marginBalance"]
-            print "Profit: %.6f" % XBt_to_XBT(marginBalance - self.start_XBt), "XBT. Run Time:", \
-                datetime.now() - self.start_time
+            logger.info("Profit: %.6f XBT. Run Time: %s" %
+                        (XBt_to_XBT(marginBalance - self.start_XBt), datetime.now() - self.start_time))
 
     # Given an order and its position in the stack, returns a boolean indicating if the reference
     # price has drifted too much and the order needs to be resubmitted.
@@ -251,16 +254,17 @@ class OrderManager:
     def exit(self):
         try:
             self.exchange.cancel_all_orders()
+            self.bitmex.ws.exit()
         except errors.AuthenticationError, e:
-            print "Was not authenticated; could not cancel orders."
+            logger.info("Was not authenticated; could not cancel orders.")
         except Exception as e:
-            print "Unable to cancel orders: " + e
+            logger.info("Unable to cancel orders: %s" % e)
 
     def run_loop(self):
         while True:
             for f, mtime in watched_files_mtimes:
                  if getmtime(f) > mtime:
-                    print "File change detected."
+                    logger.info("File change detected.")
                     self.restart()
             sleep(settings.LOOP_INTERVAL)
             self.check_orders()
@@ -268,16 +272,17 @@ class OrderManager:
             sys.stdout.flush()
 
     def restart(self):
-        print "Restarting the market maker..."
+        logger.info("Restarting the market maker...")
         os.execv(sys.executable, [sys.executable] + sys.argv)
 
 
-print 'BitMEX Market Maker Version: %s\n' % constants.VERSION
+def run():
+    logger.info('BitMEX Market Maker Version: %s\n' % constants.VERSION)
 
-om = OrderManager()
-try:
-    om.init()
-    om.run_loop()
-except (KeyboardInterrupt, SystemExit):
-    print "Shutting down. All open orders will be cancelled."
-    om.exit()
+    om = OrderManager()
+    try:
+        om.init()
+        om.run_loop()
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Shutting down. All open orders will be cancelled.")
+        om.exit()

@@ -1,4 +1,8 @@
 from os.path import join
+import logging
+
+# Available levels: logging.(DEBUG|INFO|WARN|ERROR)
+LOG_LEVEL = logging.INFO
 
 # API URL.
 BASE_URL = "https://www.bitmex.com/api/v1/"

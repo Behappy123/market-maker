@@ -4,10 +4,11 @@ from time import sleep
 import json
 import constants
 import errors
-import math
 import uuid
+import logging
 from auth import AccessTokenAuth
 from auth import APIKeyAuthWithExpires
+from ws.ws_thread import BitMEXWebsocket
 
 
 # https://www.bitmex.com/api/explorer/
@@ -18,6 +19,7 @@ class BitMEX(object):
     def __init__(self, base_url=None, symbol=None, login=None, password=None, otpToken=None,
                  apiKey=None, apiSecret=None, orderIDPrefix='mm_bitmex_'):
         """Init connector."""
+        self.logger = logging.getLogger('root')
         self.base_url = base_url
         self.symbol = symbol
         self.token = None
@@ -35,43 +37,29 @@ class BitMEX(object):
         # These headers are always sent
         self.session.headers.update({'user-agent': 'liquidbot-' + constants.VERSION})
 
-# Public methods
+        # Create websocket for streaming data
+        self.ws = BitMEXWebsocket(base_url, symbol)
+
+    #
+    # Public methods
+    #
     def ticker_data(self):
         """Get ticker data."""
-        data = self.get_instrument()
-
-        ticker = {
-            # Rounding to tickLog covers up float error
-            "last": data['lastPrice'],
-            "buy": data['bidPrice'],
-            "sell": data['askPrice'],
-            "mid": (float(data['bidPrice']) + float(data['askPrice'])) / 2
-        }
-
-        return {k: round(float(v), data['tickLog']) for k, v in ticker.iteritems()}
+        return self.ws.get_ticker()
 
     def get_instrument(self):
         """Get an instrument's details."""
-        api = "instrument"
-        instruments = self._curl_bitmex(api=api, query={'filter': json.dumps({'symbol': self.symbol})})
-        if len(instruments) == 0:
-            print "Instrument not found: %s." % self.symbol
-            exit(1)
+        instrument = self.ws.get_instrument()
 
-        instrument = instruments[0]
         if instrument["state"] != "Open":
-            print "The instrument %s is no longer open. State: %s" % (self.symbol, instrument["state"])
+            self.logger.error("The instrument %s is no longer open. State: %s" % (self.symbol, instrument["state"]))
             exit(1)
-
-        # tickLog is the log10 of tickSize
-        instrument['tickLog'] = int(math.fabs(math.log10(instrument['tickSize'])))
 
         return instrument
 
     def market_depth(self):
         """Get market depth / orderbook."""
-        api = "orderBook"
-        return self._curl_bitmex(api=api, query={'symbol': self.symbol})
+        return self.ws.market_depth()
 
     def recent_trades(self):
         """Get recent trades.
@@ -85,21 +73,11 @@ class BitMEX(object):
                u'tid': u'93842'},
 
         """
-        api = "trade/getRecent"
-        return self._curl_bitmex(api=api)
+        return self.ws.recent_trades()
 
-    @property
-    def snapshot(self):
-        """Get current BBO."""
-        order_book = self.market_depth()
-        return {
-            'bid': order_book[0]['bidPrice'],
-            'ask': order_book[0]['askPrice'],
-            'size_bid': order_book[0]['bidSize'],
-            'size_ask': order_book[0]['askSize']
-        }
-
-# Authentication required methods
+    #
+    # Authentication required methods
+    #
     def authenticate(self):
         """Set BitMEX authentication information."""
         if self.apiKey:
@@ -123,7 +101,7 @@ class BitMEX(object):
     @authentication_required
     def funds(self):
         """Get your current balance."""
-        return self._curl_bitmex(api="user/margin")
+        return self.ws.funds()
 
     @authentication_required
     def buy(self, quantity, price):
@@ -161,14 +139,7 @@ class BitMEX(object):
     @authentication_required
     def open_orders(self):
         """Get open orders."""
-        api = "order"
-        orders = self._curl_bitmex(
-            api=api,
-            query={'filter': json.dumps({'ordStatus.isTerminated': False, 'symbol': self.symbol})},
-            verb="GET"
-        )
-        # Only return orders that start with our clOrdID prefix.
-        return [o for o in orders if str(o['clOrdID']).startswith(self.orderIDPrefix)]
+        return self.ws.open_orders(self.orderIDPrefix)
 
     @authentication_required
     def cancel(self, orderID):
@@ -205,12 +176,12 @@ class BitMEX(object):
             # 401 - Auth error. Re-auth and re-run this request.
             if response.status_code == 401:
                 if self.token is None:
-                    print "Login information or API Key incorrect, please check and restart."
-                    print "Error: " + response.text
+                    self.logger.error("Login information or API Key incorrect, please check and restart.")
+                    self.logger.error("Error: " + response.text)
                     if postdict:
-                        print postdict
+                        self.logger.error(postdict)
                     exit(1)
-                print "Token expired, reauthenticating..."
+                self.logger.warning("Token expired, reauthenticating...")
                 sleep(1)
                 self.authenticate()
                 return self._curl_bitmex(api, query, postdict, timeout, verb)
@@ -218,32 +189,32 @@ class BitMEX(object):
             # 404, can be thrown if order canceled does not exist.
             elif response.status_code == 404:
                 if verb == 'DELETE':
-                    print "Order not found: %s" % postdict['orderID']
+                    self.logger.error("Order not found: %s" % postdict['orderID'])
                     return
-                print "Unable to contact the BitMEX API (404). " + \
-                    "Request: %s \n %s" % (url, json.dumps(postdict))
+                self.logger.error("Unable to contact the BitMEX API (404). " +
+                                  "Request: %s \n %s" % (url, json.dumps(postdict)))
                 exit(1)
 
             # 503 - BitMEX temporary downtime, likely due to a deploy. Try again
             elif response.status_code == 503:
-                print "Unable to contact the BitMEX API (503), retrying. " + \
-                    "Request: %s \n %s" % (url, json.dumps(postdict))
+                self.logger.warning("Unable to contact the BitMEX API (503), retrying. " +
+                                    "Request: %s \n %s" % (url, json.dumps(postdict)))
                 sleep(1)
                 return self._curl_bitmex(api, query, postdict, timeout, verb)
             # Unknown Error
             else:
-                print "Unhandled Error:", e
-                print "Endpoint was: %s %s" % (verb, api)
+                self.logger.error("Unhandled Error:", e)
+                self.logger.error("Endpoint was: %s %s" % (verb, api))
                 exit(1)
 
         except requests.exceptions.Timeout, e:
             # Timeout, re-run this request
-            print "Timed out, retrying..."
+            self.logger.warning("Timed out, retrying...")
             return self._curl_bitmex(api, query, postdict, timeout, verb)
 
         except requests.exceptions.ConnectionError, e:
-            print "Unable to contact the BitMEX API (ConnectionError). Please check the URL. Retrying. " + \
-                "Request: %s \n %s" % (url, json.dumps(postdict))
+            self.logger.warning("Unable to contact the BitMEX API (ConnectionError). Please check the URL. Retrying. " +
+                                "Request: %s \n %s" % (url, json.dumps(postdict)))
             sleep(1)
             return self._curl_bitmex(api, query, postdict, timeout, verb)
 
