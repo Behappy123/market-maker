@@ -9,6 +9,7 @@ import logging
 import collections
 import urlparse
 import math
+from market_maker.auth.APIKeyAuth import generate_nonce, generate_signature
 
 
 # Naive implementation of connecting to BitMEX websocket for streaming realtime data.
@@ -92,11 +93,8 @@ class BitMEXWebsocket():
                                          on_open=self.__on_open,
                                          on_error=self.__on_error,
                                          # We can login using email/pass or API key
-                                         # TODO implement API Key
-                                         header=[
-                                             "email: " + settings.LOGIN,
-                                             "password: " + settings.PASSWORD
-                                         ])
+                                         header=self.__get_auth())
+
         self.wst = threading.Thread(target=lambda: self.ws.run_forever())
         self.wst.daemon = True
         self.wst.start()
@@ -111,6 +109,25 @@ class BitMEXWebsocket():
             self.logger.error("Couldn't connect to WS! Exiting.")
             self.exit()
             sys.exit(1)
+
+    def __get_auth(self):
+        '''Return auth headers. Will use API Keys if present in settings.'''
+        if not settings.API_KEY:
+            self.logger.info("Authenticating with email/password.")
+            return [
+                "email: " + settings.LOGIN,
+                "password: " + settings.PASSWORD
+            ]
+        else:
+            self.logger.info("Authenticating with API Key.")
+            # To auth to the WS using an API key, we generate a signature of a nonce and
+            # the WS API endpoint.
+            nonce = generate_nonce()
+            return [
+                "api-nonce: " + str(nonce),
+                "api-signature: " + generate_signature(settings.API_SECRET, 'GET', '/realtime', nonce, ''),
+                "api-key:" + settings.API_KEY
+            ]
 
     def __push_account(self):
         '''Ask the websocket for an account push. Gets margin, positions, and open orders'''
