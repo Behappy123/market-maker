@@ -186,6 +186,8 @@ class BitMEXWebsocket():
                     # Locate the item in the collection and update it.
                     for updateData in message['data']:
                         item = findItemByKeys(self.keys[table], self.data[table], updateData)
+                        if not item:
+                            return  # No item found to update. Could happen before push
                         item.update(updateData)
                         # Remove cancelled / filled orders
                         if table == 'order' and item['leavesQty'] <= 0:
