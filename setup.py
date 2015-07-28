@@ -13,9 +13,10 @@ setup(name='bitmex-market-maker',
       author_email='sam@bitmex.com',
       url='',
       install_requires=[
-          'requests'
+          'requests',
+          'websocket-client'
       ]
-     )
+      )
 
 if not isfile('settings.py'):
   copyfile(join('market_maker', '_settings_base.py'), 'settings.py')
