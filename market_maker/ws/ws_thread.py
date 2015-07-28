@@ -135,13 +135,14 @@ class BitMEXWebsocket():
     def __push_account(self):
         '''Ask the websocket for an account push. Gets margin, positions, and open orders'''
         self.__send_command("getAccount")
-        while 'margin' not in self.data:
+        # Wait for the keys to show up from the ws
+        while not {'margin', 'position', 'order'} <= set(self.data):
             sleep(0.1)
 
     def __push_symbol(self, symbol):
         '''Ask the websocket for a symbol push. Gets instrument, orderBook, quote, and trade'''
         self.__send_command("getSymbol", symbol)
-        while 'instrument' not in self.data:
+        while not {'instrument', 'trade', 'orderBook25'} <= set(self.data):
             sleep(0.1)
 
     def __send_command(self, command, args=[]):
