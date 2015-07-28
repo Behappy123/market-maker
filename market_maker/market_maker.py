@@ -4,6 +4,7 @@ from urllib2 import URLError
 from datetime import datetime
 from os.path import getmtime
 import string
+import atexit
 
 import bitmex
 import log
@@ -20,20 +21,6 @@ watched_files_mtimes = [(f, getmtime(f)) for f in settings.WATCHED_FILES]
 # Helpers
 #
 logger = log.setup_custom_logger('root')
-
-
-def XBt_to_XBT(XBt):
-    return float(XBt) / constants.XBt_TO_XBT
-
-
-def cost(instrument, quantity, price):
-    mult = instrument["multiplier"]
-    P = mult * price if mult >= 0 else mult / price
-    return abs(quantity * P)
-
-
-def margin(instrument, quantity, price):
-    return cost(instrument, quantity, price) * instrument["initMargin"]
 
 
 class ExchangeInterface:
@@ -110,7 +97,7 @@ class ExchangeInterface:
             order = self.bitmex.sell(quantity, price)
         else:
             logger.error("Invalid order type")
-            exit()
+            sys.exit()
 
         return order
 
@@ -118,6 +105,10 @@ class ExchangeInterface:
 class OrderManager:
     def __init__(self):
         self.exchange = ExchangeInterface(settings.DRY_RUN)
+        # Once exchange is created, register exit handler that will always cancel orders
+        # on any error.
+        atexit.register(self.exit)
+
         logger.info("Using symbol %s." % self.exchange.symbol)
 
     def init(self):
@@ -147,14 +138,14 @@ class OrderManager:
             logger.error(self.start_position)
             logger.error("%s %s %s %s" % (self.get_position(-1), ticker["sell"], self.get_position(1), ticker["buy"]))
             logger.error("Sanity check failed, exchange data is screwy")
-            exit()
+            sys.exit()
 
         for i in range(1, settings.ORDER_PAIRS + 1):
             self.place_order(-i, "Buy")
             self.place_order(i, "Sell")
 
         if settings.DRY_RUN:
-            exit()
+            sys.exit()
 
     def get_ticker(self):
         ticker = self.exchange.get_ticker()
@@ -245,6 +236,7 @@ class OrderManager:
         return True if (reference > price_max or reference < price_min) else False
 
     def exit(self):
+        logger.info("Shutting down. All open orders will be cancelled.")
         try:
             self.exchange.cancel_all_orders()
             self.exchange.bitmex.ws.exit()
@@ -268,14 +260,32 @@ class OrderManager:
         logger.info("Restarting the market maker...")
         os.execv(sys.executable, [sys.executable] + sys.argv)
 
+#
+# Helpers
+#
+
+
+def XBt_to_XBT(XBt):
+    return float(XBt) / constants.XBt_TO_XBT
+
+
+def cost(instrument, quantity, price):
+    mult = instrument["multiplier"]
+    P = mult * price if mult >= 0 else mult / price
+    return abs(quantity * P)
+
+
+def margin(instrument, quantity, price):
+    return cost(instrument, quantity, price) * instrument["initMargin"]
+
 
 def run():
     logger.info('BitMEX Market Maker Version: %s\n' % constants.VERSION)
 
     om = OrderManager()
+    # Try/except just keeps ctrl-c from printing an ugly stacktrace
     try:
         om.init()
         om.run_loop()
     except (KeyboardInterrupt, SystemExit):
-        logger.info("Shutting down. All open orders will be cancelled.")
-        om.exit()
+        sys.exit()
