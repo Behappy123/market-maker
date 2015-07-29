@@ -3,7 +3,6 @@ import websocket
 import threading
 import traceback
 from time import sleep
-import settings
 import json
 import string
 import logging
@@ -22,21 +21,16 @@ from market_maker.auth.APIKeyAuth import generate_nonce, generate_signature
 # poll really often if it wants.
 class BitMEXWebsocket():
 
-    def __init__(self, endpoint="", symbol="XBTN15"):
+    def __init__(self, endpoint="", symbol="XBTN15", API_KEY=None, API_SECRET=None, LOGIN=None, PASSWORD=None):
         '''Connect to the websocket and initialize data stores.'''
         self.logger = logging.getLogger('root')
         self.logger.debug("Initializing WebSocket.")
 
-        self.__reset(symbol)
+        self.__reset(**kwargs)
 
         # We can subscribe right in the connection querystring, so let's build that.
         # Subscribe to all pertinent endpoints
-        subscriptions = [sub + ':' + symbol for sub in ["order", "execution", "position", "quote", "trade"]]
-        subscriptions += ["margin"]
-        urlParts = list(urlparse.urlparse(endpoint))
-        urlParts[0] = urlParts[0].replace('http', 'ws')
-        urlParts[2] = "/realtime?subscribe=" + string.join(subscriptions, ",")
-        wsURL = urlparse.urlunparse(urlParts)
+        wsURL = self.__getURL()
         self.logger.info("Connecting to %s" % wsURL)
         self.__connect(wsURL, symbol)
         self.logger.info('Connected to WS.')
@@ -58,8 +52,8 @@ class BitMEXWebsocket():
 
     def get_ticker(self):
         '''Return a ticker object. Generated from quote and trade.'''
-        lastQuote = self.data['quote'][0]
-        lastTrade = self.data['trade'][0]
+        lastQuote = self.data['quote'][-1]
+        lastTrade = self.data['trade'][-1]
         ticker = {
             "last": lastTrade['price'],
             "buy": lastQuote['bidPrice'],
@@ -114,11 +108,15 @@ class BitMEXWebsocket():
 
     def __get_auth(self):
         '''Return auth headers. Will use API Keys if present in settings.'''
-        if not settings.API_KEY:
+        if not self.config['API_KEY'] and not self.config['LOGIN']:
+            self.logger.error("No authentication provided! Unable to connect.")
+            sys.exit(1)
+
+        if not self.config['API_KEY']:
             self.logger.info("Authenticating with email/password.")
             return [
-                "email: " + settings.LOGIN,
-                "password: " + settings.PASSWORD
+                "email: " + self.config['LOGIN'],
+                "password: " + self.config['PASSWORD']
             ]
         else:
             self.logger.info("Authenticating with API Key.")
@@ -127,9 +125,17 @@ class BitMEXWebsocket():
             nonce = generate_nonce()
             return [
                 "api-nonce: " + str(nonce),
-                "api-signature: " + generate_signature(settings.API_SECRET, 'GET', '/realtime', nonce, ''),
-                "api-key:" + settings.API_KEY
+                "api-signature: " + generate_signature(self.config['API_SECRET'], 'GET', '/realtime', nonce, ''),
+                "api-key:" + self.config['API_KEY']
             ]
+
+    def __get_url(self):
+        subscriptions = [sub + ':' + symbol for sub in ["order", "execution", "position", "quote", "trade"]]
+        subscriptions += ["margin"]
+        urlParts = list(urlparse.urlparse(self.config['endpoint']))
+        urlParts[0] = urlParts[0].replace('http', 'ws')
+        urlParts[2] = "/realtime?subscribe=" + string.join(subscriptions, ",")
+        return urlparse.urlunparse(urlParts)
 
     def __push_account(self):
         '''Ask the websocket for an account push. Gets margin, positions, and open orders'''
@@ -211,10 +217,10 @@ class BitMEXWebsocket():
         self.logger.info('Websocket Closed')
         sys.exit(1)
 
-    def __reset(self, symbol):
+    def __reset(self, kwargs):
         self.data = {}
         self.keys = {}
-        self.symbol = symbol
+        self.config = kwargs
 
 
 def findItemByKeys(keys, table, matchData):
