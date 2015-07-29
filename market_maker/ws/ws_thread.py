@@ -7,7 +7,6 @@ import settings
 import json
 import string
 import logging
-import collections
 import urlparse
 import math
 from market_maker.auth.APIKeyAuth import generate_nonce, generate_signature
@@ -161,10 +160,8 @@ class BitMEXWebsocket():
                 self.logger.debug("Subscribed to %s." % message['subscribe'])
             elif action:
 
-                # Create a deque object so we can just simply keep appendleft()ing new data without
-                # having to worry about popping it off. Newest data is always at the head.
                 if table not in self.data:
-                    self.data[table] = collections.deque([], settings.ORDER_PAIRS * 2)
+                    self.data[table] = []
 
                 # There are four possible actions from the WS:
                 # 'partial' - full table image
@@ -173,15 +170,13 @@ class BitMEXWebsocket():
                 # 'delete'  - delete row
                 if action == 'partial':
                     self.logger.debug("%s: partial" % table)
-                    # Reverse while extending because extendleft reverses order
-                    self.data[table].extendleft(message['data'][::-1])
+                    self.data[table] += message['data']
                     # Keys are communicated on partials to let you know how to uniquely identify
                     # an item. We use it for updates.
                     self.keys[table] = message['keys']
                 elif action == 'insert':
                     self.logger.debug('%s: inserting %s' % (table, message['data']))
-                    # Reverse while extending because extendleft reverses order
-                    self.data[table].extendleft(message['data'][::-1])
+                    self.data[table] += message['data']
                 elif action == 'update':
                     self.logger.debug('%s: updating %s' % (table, message['data']))
                     # Locate the item in the collection and update it.
