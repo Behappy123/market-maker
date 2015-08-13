@@ -223,7 +223,7 @@ class BitMEX(object):
                 return self._curl_bitmex(api, query, postdict, timeout, verb)
             # Unknown Error
             else:
-                self.logger.error("Unhandled Error: %s" % e)
+                self.logger.error("Unhandled Error: %s: %s %s" % (e, e.message, json.dumps(response.json(), indent=4)))
                 self.logger.error("Endpoint was: %s %s" % (verb, api))
                 exit(1)
 
