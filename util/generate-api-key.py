@@ -2,8 +2,8 @@ import urllib
 import urllib2
 from time import sleep
 import json
-import constants
-import errors
+from market_maker import constants
+from market_maker import errors
 import math
 import ssl
 import getpass
