@@ -36,25 +36,25 @@ def test_with_message():
 
     # Initial connection - BitMEX sends a welcome message.
     ws = create_connection(BITMEX_URL + ENDPOINT)
-    print "Receiving Welcome Message..."
+    print("Receiving Welcome Message...")
     result = ws.recv()
-    print "Received '%s'" % result
+    print("Received '%s'" % result)
 
     # Send API Key with signed message.
     request = {"op": "authKey", "args": [API_KEY, nonce, signature]}
     ws.send(json.dumps(request))
-    print "Sent Auth request"
+    print("Sent Auth request")
     result = ws.recv()
-    print "Received '%s'" % result
+    print("Received '%s'" % result)
 
     # Send a request that requires authorization.
     request = {"op": "getAccount"}
     ws.send(json.dumps(request))
-    print "Sent getAccount"
+    print("Sent getAccount")
     result = ws.recv()
-    print "Received '%s'" % result
+    print("Received '%s'" % result)
     result = ws.recv()
-    print "Received '%s'" % result
+    print("Received '%s'" % result)
 
     ws.close()
 
@@ -69,18 +69,18 @@ def test_with_querystring():
     # Initial connection - BitMEX sends a welcome message.
     ws = create_connection(BITMEX_URL + ENDPOINT +
                            "?api-nonce=%s&api-signature=%s&api-key=%s" % (nonce, signature, API_KEY))
-    print "Receiving Welcome Message..."
+    print("Receiving Welcome Message...")
     result = ws.recv()
-    print "Received '%s'" % result
+    print("Received '%s'" % result)
 
     # Send a request that requires authorization.
     request = {"op": "getAccount"}
     ws.send(json.dumps(request))
-    print "Sent getAccount"
+    print("Sent getAccount")
     result = ws.recv()
-    print "Received '%s'" % result
+    print("Received '%s'" % result)
     result = ws.recv()
-    print "Received '%s'" % result
+    print("Received '%s'" % result)
 
     ws.close()
 
@@ -100,7 +100,7 @@ def bitmex_signature(apiSecret, verb, url, nonce, postdict=None):
     path = parsedURL.path
     if parsedURL.query:
         path = path + '?' + parsedURL.query
-    # print "Computing HMAC: %s" % verb + path + str(nonce) + data
+    # print("Computing HMAC: %s" % verb + path + str(nonce) + data)
     message = bytes(verb + path + str(nonce) + data).encode('utf-8')
 
     signature = hmac.new(apiSecret, message, digestmod=hashlib.sha256).hexdigest()

@@ -20,4 +20,4 @@ setup(name='bitmex-market-maker',
 
 if not isfile('settings.py'):
   copyfile(join('market_maker', '_settings_base.py'), 'settings.py')
-print "\n**** \nImportant!!!\nEdit settings.py before starting the bot.\n****"
+print("\n**** \nImportant!!!\nEdit settings.py before starting the bot.\n****")

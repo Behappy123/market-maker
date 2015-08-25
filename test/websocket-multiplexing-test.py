@@ -30,11 +30,11 @@ def main():
 
 def test_with_message():
     # Initial connection - BitMEX sends a welcome message.
-    print "Connecting to " + BITMEX_URL + ENDPOINT
+    print("Connecting to " + BITMEX_URL + ENDPOINT)
     ws = create_connection(BITMEX_URL + ENDPOINT)
-    print "Receiving Welcome Message..."
+    print("Receiving Welcome Message...")
     result = ws.recv()
-    print "Received '%s'" % result
+    print("Received '%s'" % result)
     connID = json.loads(result[1:])['sid']
 
     # Open multiplexed connections.
@@ -52,21 +52,21 @@ def test_with_message():
         # connID = id()
         channelName = "userAuth:" + key + ":" + str(nonce) + ":" + signature
         request = [1, connID, channelName]
-        print json.dumps(request)
+        print(json.dumps(request))
         ws.send(json.dumps(request))
-        print "Sent Auth request"
+        print("Sent Auth request")
         result = ws.recv()
-        print "Received '%s'" % result
+        print("Received '%s'" % result)
 
         # Send a request that requires authorization on this multiplexed connection.
         op = {"op": "getAccount"}
         request = [0, connID, channelName, op]
         ws.send(json.dumps(request))
-        print "Sent getAccount"
+        print("Sent getAccount")
         result = ws.recv()
-        print "Received '%s'" % result
+        print("Received '%s'" % result)
         result = ws.recv()
-        print "Received '%s'" % result
+        print("Received '%s'" % result)
 
     ws.close()
 
@@ -91,7 +91,7 @@ def bitmex_signature(apiSecret, verb, url, nonce, postdict=None):
     path = parsedURL.path
     if parsedURL.query:
         path = path + '?' + parsedURL.query
-    # print "Computing HMAC: %s" % verb + path + str(nonce) + data
+    # print("Computing HMAC: %s" % verb + path + str(nonce) + data)
     message = bytes(verb + path + str(nonce) + data).encode('utf-8')
 
     signature = hmac.new(apiSecret, message, digestmod=hashlib.sha256).hexdigest()
