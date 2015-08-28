@@ -1,26 +1,28 @@
 import urllib
 import urllib2
-from time import sleep
 import json
-from market_maker import constants
-from market_maker import errors
-import math
 import ssl
 import getpass
-import pprint
 import signal
 
 # Edit this to True if you'd like to create a Testnet key.
 USE_TESTNET = False
 
 BITMEX_TESTNET = "https://testnet.bitmex.com"
-BITMEX_PRODUCTION = "https://www.bitmex.com"
+BITMEX_PRODUCTION = "http://localhost:3000"
 
 
 def main():
     print("########################")
     print("BitMEX API Key Interface")
     print("########################\n")
+
+    if USE_TESTNET:
+        print('Connected to testnet.bitmex.com. If you want to create a production key, edit this file and set ' +
+              'USE_TESTNET to False.\n')
+    else:
+        print('Connected to www.bitmex.com. If you want to create a testnet key, edit this file and set ' +
+              'USE_TESTNET to True.\n')
 
     apiObj = auth()
     while True:
