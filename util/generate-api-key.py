@@ -9,7 +9,7 @@ import signal
 USE_TESTNET = False
 
 BITMEX_TESTNET = "https://testnet.bitmex.com"
-BITMEX_PRODUCTION = "http://localhost:3000"
+BITMEX_PRODUCTION = "https://www.bitmex.com"
 
 
 def main():
