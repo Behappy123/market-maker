@@ -3,6 +3,8 @@ import json
 import ssl
 import getpass
 import signal
+from distutils.util import strtobool
+import string
 
 try:
     from urllib.request import Request, urlopen
@@ -80,8 +82,17 @@ class BitMEX(object):
         print("To use with a single IP, append '/32', such as 207.39.29.22/32. ")
         print("See this reference on CIDR blocks: http://software77.net/cidr-101.html")
         cidr = input("CIDR (optional): ")
+
+        # Set up permissions
+        permissions = []
+        if strtobool(input("Should this key be able to submit orders? [y/N] ") or 'N'):
+            permissions.append('order')
+        if strtobool(input("Should this key be able to submit withdrawals? [y/N] ") or 'N'):
+            permissions.append('withdraw')
+
         key = self._curl_bitmex("/apiKey",
-                                postdict={"name": name, "cidr": cidr, "enabled": True})
+                                postdict={"name": name, "cidr": cidr, "enabled": True,
+                                          "permissions": string.join(permissions, ',')})
 
         print("Key created. Details:\n")
         print("API Key:    " + key["id"])
