@@ -137,7 +137,7 @@ class BitMEX(object):
         try:
             self._curl_bitmex("/apiKey/",
                               postdict={"apiKeyID": apiKeyID}, verb='DELETE')
-            print("Key with ID %s disabled." % apiKeyID)
+            print("Key with ID %s deleted." % apiKeyID)
         except:
             print("Unable to delete key, please try again.")
             self.delete_key()
