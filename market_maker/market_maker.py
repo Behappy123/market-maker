@@ -7,10 +7,8 @@ import string
 import atexit
 
 import bitmex
-import log
 import settings
-import constants
-import errors
+from utils import log, constants, errors
 
 # Used for reloading the bot - saves modified times of key files
 import os
@@ -87,6 +85,10 @@ class ExchangeInterface:
 
         return {"margin": margin, "orders": orders}
 
+    def is_open(self):
+        """Check that websockets are still open."""
+        return not self.bitmex.ws.exited
+
     def place_order(self, price, quantity, order_type):
         if settings.DRY_RUN:
             return {'orderID': 'dry_run_order', 'orderQty': quantity, 'price': price, 'symbol': self.symbol}
@@ -135,7 +137,7 @@ class OrderManager:
 
         # Sanity check:
         if self.get_position(-1) >= ticker["sell"] or self.get_position(1) <= ticker["buy"]:
-            logger.error(self.start_position)
+            logger.error(self.start_position_mid)
             logger.error("%s %s %s %s" % (self.get_position(-1), ticker["sell"], self.get_position(1), ticker["buy"]))
             logger.error("Sanity check failed, exchange data is screwy")
             sys.exit()
@@ -162,7 +164,12 @@ class OrderManager:
 
         # Midpoint, used for simpler order placement.
         self.start_position_mid = ticker["mid"]
-        logger.info('Current Ticker: %s' % ticker)
+        logger.info(
+            "%s Ticker: Buy: %.2f, Sell: %.2f" %
+            (self.instrument['symbol'], ticker["buy"], ticker["sell"])
+        )
+        logger.info('Start Positions: Buy: %.2f, Sell: %.2f, Mid: %.2f' %
+                    (self.start_position_buy, self.start_position_sell, self.start_position_mid))
         return ticker
 
     def get_position(self, index):
@@ -196,6 +203,12 @@ class OrderManager:
             sleep(5)  # don't go crazy
 
         self.orders[index] = order
+
+    def check_connection(self):
+        """Ensure the WS connections are still open."""
+        if not self.exchange.is_open():
+            logger.error("Realtime data connection unexpectedly closed, exiting.")
+            sys.exit()
 
     def check_orders(self):
         trade_data = self.exchange.get_trade_data()
@@ -253,7 +266,8 @@ class OrderManager:
                     self.restart()
             sleep(settings.LOOP_INTERVAL)
             self.check_orders()
-            sys.stdout.write(".")
+            self.check_connection()
+            sys.stdout.write("-----\n")
             sys.stdout.flush()
 
     def restart(self):

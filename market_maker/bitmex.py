@@ -2,12 +2,10 @@
 import requests
 from time import sleep
 import json
-import constants
-import errors
+from utils import constants, errors
 import uuid
 import logging
-from auth import AccessTokenAuth
-from auth import APIKeyAuthWithExpires
+from auth import AccessTokenAuth, APIKeyAuthWithExpires
 from ws.ws_thread import BitMEXWebsocket
 
 
@@ -17,7 +15,7 @@ class BitMEX(object):
     """BitMEX API Connector."""
 
     def __init__(self, base_url=None, symbol=None, login=None, password=None, otpToken=None,
-                 apiKey=None, apiSecret=None, orderIDPrefix='mm_bitmex_'):
+                 apiKey=None, apiSecret=None, orderIDPrefix='mm_bitmex_', shouldWSAuth=True):
         """Init connector."""
         self.logger = logging.getLogger('root')
         self.base_url = base_url
@@ -38,7 +36,8 @@ class BitMEX(object):
         self.session.headers.update({'user-agent': 'liquidbot-' + constants.VERSION})
 
         # Create websocket for streaming data
-        self.ws = BitMEXWebsocket(base_url, symbol)
+        self.ws = BitMEXWebsocket()
+        self.ws.connect(base_url, symbol, shouldAuth=shouldWSAuth)
 
     #
     # Public methods
@@ -104,6 +103,11 @@ class BitMEX(object):
         return self.ws.funds()
 
     @authentication_required
+    def position(self):
+        """Get your open position."""
+        return self.ws.position()
+
+    @authentication_required
     def buy(self, quantity, price):
         """Place a buy order.
 
@@ -161,6 +165,17 @@ class BitMEX(object):
             'orderID': orderID,
         }
         return self._curl_bitmex(api=api, postdict=postdict, verb="DELETE")
+
+    @authentication_required
+    def withdraw(self, amount, fee, address):
+        api = "user/requestWithdrawal"
+        postdict = {
+            'amount': amount,
+            'fee': fee,
+            'currency': 'XBt',
+            'address': address
+        }
+        return self._curl_bitmex(api=api, postdict=postdict, verb="POST")
 
     def _curl_bitmex(self, api, query=None, postdict=None, timeout=3, verb=None):
         """Send a request to BitMEX Servers."""

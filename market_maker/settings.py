@@ -1,8 +1,7 @@
 import os
 import sys
-from dotdict import dotdict
+from utils.dotdict import dotdict
 import _settings_base as baseSettings
-
 
 def import_path(fullpath):
     """

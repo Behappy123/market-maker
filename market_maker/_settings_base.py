@@ -10,7 +10,7 @@ BASE_URL = "https://www.bitmex.com/api/v1/"
 # Credentials
 LOGIN = "test@test.com"
 PASSWORD = "password"
-OTPTOKEN = "" # OTP token, if enabled (Google Authenticator)
+OTPTOKEN = ""  # OTP token, if enabled (Google Authenticator)
 
 # If using permanent API keys, leave the above as blank strings and fill these out.
 API_KEY = ""
@@ -20,7 +20,7 @@ API_SECRET = ""
 SYMBOL = "XBTP14"
 
 # If true, don't set up any orders, just say what we would do
-#DRY_RUN = True
+# DRY_RUN = True
 DRY_RUN = False
 
 # How often to re-check the orderbook and replace orders
