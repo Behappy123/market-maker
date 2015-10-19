@@ -5,6 +5,7 @@ import getpass
 import signal
 from distutils.util import strtobool
 import string
+import argparse
 
 try:
     from urllib.request import Request, urlopen
@@ -20,11 +21,13 @@ try:
 except NameError:
     pass
 
-# Edit this to True if you'd like to create a Testnet key.
-USE_TESTNET = False
 
 BITMEX_TESTNET = "https://testnet.bitmex.com"
 BITMEX_PRODUCTION = "https://www.bitmex.com"
+parser = argparse.ArgumentParser(description='Create a BitMEX permanent API Key.')
+parser.add_argument('--testnet', action='store_true', help='use BitMEX Testnet, not www.BitMEX.com')
+
+args = parser.parse_args()
 
 
 def main():
@@ -32,12 +35,12 @@ def main():
     print("BitMEX API Key Interface")
     print("########################\n")
 
-    if USE_TESTNET:
-        print('Connected to testnet.bitmex.com. If you want to create a production key, edit this file and set ' +
-              'USE_TESTNET to False.\n')
+    if args.testnet:
+        print('Connected to testnet.bitmex.com. If you want to create a production key, start this script without ' +
+              'the option "--testnet".\n')
     else:
-        print('Connected to www.bitmex.com. If you want to create a testnet key, edit this file and set ' +
-              'USE_TESTNET to True.\n')
+        print('Connected to www.bitmex.com. If you want to create a testnet key, start this script with the option ' +
+              '"--testnet".\n')
 
     apiObj = auth()
     while True:
@@ -68,7 +71,7 @@ def auth():
 
 class BitMEX(object):
     def __init__(self, email=None, password=None, otpToken=None):
-        self.base_url = (BITMEX_TESTNET if USE_TESTNET else BITMEX_PRODUCTION) + "/api/v1"
+        self.base_url = (BITMEX_TESTNET if args.testnet else BITMEX_PRODUCTION) + "/api/v1"
         self.accessToken = None
         self.accessToken = self._curl_bitmex("/user/login",
                                              postdict={"email": email, "password": password, "token": otpToken})["id"]
