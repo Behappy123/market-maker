@@ -1,7 +1,10 @@
+from __future__ import absolute_import
 import os
 import sys
-from utils.dotdict import dotdict
-import _settings_base as baseSettings
+from market_maker.utils.dotdict import dotdict
+import market_maker._settings_base as baseSettings
+from imp import reload
+
 
 def import_path(fullpath):
     """
@@ -23,4 +26,5 @@ settings = {}
 settings.update(vars(baseSettings))
 settings.update(vars(userSettings))
 
-sys.modules[__name__] = dotdict(settings)
+# Main export
+settings = dotdict(settings)

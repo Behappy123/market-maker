@@ -1,8 +1,11 @@
 from requests.auth import AuthBase
-import urlparse
 import time
 import hashlib
 import hmac
+from future.builtins import bytes
+from future.standard_library import hooks
+with hooks():  # Python 2/3 compat
+    from urllib.parse import urlparse
 
 
 class APIKeyAuth(AuthBase):
@@ -44,13 +47,13 @@ def generate_nonce():
 def generate_signature(secret, verb, url, nonce, data):
     """Generate a request signature compatible with BitMEX."""
     # Parse the url so we can remove the base and extract just the path.
-    parsedURL = urlparse.urlparse(url)
+    parsedURL = urlparse(url)
     path = parsedURL.path
     if parsedURL.query:
         path = path + '?' + parsedURL.query
 
     # print "Computing HMAC: %s" % verb + path + str(nonce) + data
-    message = bytes(verb + path + str(nonce) + data).encode('utf-8')
+    message = verb + path + str(nonce) + data
 
-    signature = hmac.new(secret, message, digestmod=hashlib.sha256).hexdigest()
+    signature = hmac.new(bytes(secret, 'utf8'), bytes(message, 'utf8'), digestmod=hashlib.sha256).hexdigest()
     return signature

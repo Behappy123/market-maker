@@ -6,10 +6,13 @@ from time import sleep
 import json
 import string
 import logging
-import urlparse
 import math
-from market_maker import settings
+from market_maker.settings import settings
 from market_maker.auth.APIKeyAuth import generate_nonce, generate_signature
+from future.utils import iteritems
+from future.standard_library import hooks
+with hooks():  # Python 2/3 compat
+    from urllib.parse import urlparse, urlunparse
 
 
 # Naive implementation of connecting to BitMEX websocket for streaming realtime data.
@@ -41,10 +44,10 @@ class BitMEXWebsocket():
             subscriptions += ["margin"]
 
         # Get WS URL and connect.
-        urlParts = list(urlparse.urlparse(endpoint))
+        urlParts = list(urlparse(endpoint))
         urlParts[0] = urlParts[0].replace('http', 'ws')
-        urlParts[2] = "/realtime?subscribe=" + string.join(subscriptions, ",")
-        wsURL = urlparse.urlunparse(urlParts)
+        urlParts[2] = "/realtime?subscribe=" + ",".join(subscriptions)
+        wsURL = urlunparse(urlParts)
         self.logger.info("Connecting to %s" % wsURL)
         self.__connect(wsURL)
         self.logger.info('Connected to WS. Fetching data images, this may take a moment...')
@@ -85,7 +88,7 @@ class BitMEXWebsocket():
             }
 
         # The instrument has a tickSize. Use it to round values.
-        return {k: round(float(v or 0), instrument['tickLog']) for k, v in ticker.iteritems()}
+        return {k: round(float(v or 0), instrument['tickLog']) for k, v in iteritems(ticker)}
 
     def funds(self):
         return self.data['margin'][0]

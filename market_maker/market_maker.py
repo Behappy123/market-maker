@@ -1,14 +1,14 @@
+from __future__ import absolute_import
 from time import sleep
 import sys
-from urllib2 import URLError
 from datetime import datetime
 from os.path import getmtime
 import string
 import atexit
 
-import bitmex
-import settings
-from utils import log, constants, errors
+from market_maker import bitmex
+from market_maker.settings import settings
+from market_maker.utils import log, constants, errors
 
 # Used for reloading the bot - saves modified times of key files
 import os
@@ -42,9 +42,6 @@ class ExchangeInterface:
             try:
                 self.bitmex.cancel(order['orderID'])
                 sleep(settings.API_REST_INTERVAL)
-            except URLError as e:
-                logger.info(e.reason)
-                sleep(settings.API_ERROR_INTERVAL)
             except ValueError as e:
                 logger.info(e)
                 sleep(settings.API_ERROR_INTERVAL)
@@ -197,7 +194,7 @@ class OrderManager:
                 "Gross Value: %.6f XBT" % XBt_to_XBT(cost(self.instrument, quantity, price)),
                 "Margin Requirement: %.6f XBT" % XBt_to_XBT(margin(self.instrument, quantity, price))
             ]
-            logger.info(string.join(msg))
+            logger.info(" ".join(msg))
         else:
             logger.info("Order rejected: " + order['ordRejReason'])
             sleep(5)  # don't go crazy
@@ -253,7 +250,7 @@ class OrderManager:
         try:
             self.exchange.cancel_all_orders()
             self.exchange.bitmex.ws.exit()
-        except errors.AuthenticationError, e:
+        except errors.AuthenticationError as e:
             logger.info("Was not authenticated; could not cancel orders.")
         except Exception as e:
             logger.info("Unable to cancel orders: %s" % e)

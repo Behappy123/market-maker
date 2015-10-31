@@ -11,6 +11,13 @@ To get started:
 
 Based on [liquidbot](https://github.com/chrisacheson/liquidbot).
 
+Python 2/3
+----------
+
+This module is compatible with both Python 2 and 3 using Python's `future` module.
+
+Some helpful tips on Py2/3 compatibility: http://python-future.org/compatible_idioms.html
+
 API Keys
 --------
 

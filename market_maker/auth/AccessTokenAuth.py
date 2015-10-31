@@ -1,5 +1,6 @@
 from requests.auth import AuthBase
 
+
 class AccessTokenAuth(AuthBase):
 
     """Attaches Access Token Authentication to the given Request object."""

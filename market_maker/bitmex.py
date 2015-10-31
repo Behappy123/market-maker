@@ -1,12 +1,14 @@
 """BitMEX API Connector."""
+from __future__ import absolute_import
 import requests
 from time import sleep
 import json
-from utils import constants, errors
 import uuid
 import logging
-from auth import AccessTokenAuth, APIKeyAuthWithExpires
-from ws.ws_thread import BitMEXWebsocket
+import base64
+from market_maker.auth import AccessTokenAuth, APIKeyAuthWithExpires
+from market_maker.utils import constants, errors
+from market_maker.ws.ws_thread import BitMEXWebsocket
 
 
 # https://www.bitmex.com/api/explorer/
@@ -92,7 +94,7 @@ class BitMEX(object):
         def wrapped(self, *args, **kwargs):
             if not (self.token or self.apiKey):
                 msg = "You must be authenticated to use this method"
-                raise errors.AuthenticationError, msg
+                raise errors.AuthenticationError(msg)
             else:
                 return function(self, *args, **kwargs)
         return wrapped
@@ -131,7 +133,7 @@ class BitMEX(object):
 
         endpoint = "order"
         # Generate a unique clOrdID with our prefix so we can identify it.
-        clOrdID = self.orderIDPrefix + uuid.uuid4().bytes.encode('base64').rstrip('=\n')
+        clOrdID = self.orderIDPrefix + base64.b64encode(uuid.uuid4().bytes).decode('utf-8').rstrip('=\n')
         postdict = {
             'symbol': self.symbol,
             'quantity': quantity,
@@ -199,7 +201,7 @@ class BitMEX(object):
             # Make non-200s throw
             response.raise_for_status()
 
-        except requests.exceptions.HTTPError, e:
+        except requests.exceptions.HTTPError as e:
             # 401 - Auth error. Re-auth and re-run this request.
             if response.status_code == 401:
                 if self.token is None:
@@ -238,16 +240,16 @@ class BitMEX(object):
                 return self._curl_bitmex(api, query, postdict, timeout, verb)
             # Unknown Error
             else:
-                self.logger.error("Unhandled Error: %s: %s %s" % (e, e.message, json.dumps(response.json(), indent=4)))
+                self.logger.error("Unhandled Error: %s: %s" % (e, json.dumps(response.json(), indent=4)))
                 self.logger.error("Endpoint was: %s %s" % (verb, api))
                 exit(1)
 
-        except requests.exceptions.Timeout, e:
+        except requests.exceptions.Timeout as e:
             # Timeout, re-run this request
             self.logger.warning("Timed out, retrying...")
             return self._curl_bitmex(api, query, postdict, timeout, verb)
 
-        except requests.exceptions.ConnectionError, e:
+        except requests.exceptions.ConnectionError as e:
             self.logger.warning("Unable to contact the BitMEX API (ConnectionError). Please check the URL. Retrying. " +
                                 "Request: %s \n %s" % (url, json.dumps(postdict)))
             sleep(1)

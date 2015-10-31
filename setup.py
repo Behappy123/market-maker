@@ -14,7 +14,8 @@ setup(name='bitmex-market-maker',
       url='',
       install_requires=[
           'requests',
-          'websocket-client'
+          'websocket-client',
+          'future'
       ]
       )
 

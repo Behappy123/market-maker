@@ -1,5 +1,6 @@
 import logging
-import settings
+from market_maker.settings import settings
+
 
 def setup_custom_logger(name):
     formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
