@@ -63,7 +63,7 @@ def auth():
     print("Please log in.")
     email = input("Email: ")
     password = getpass.getpass("Password: ")
-    otpToken = input("OTP Token (if enabled. If not, press <enter>): ")
+    otpToken = input("OTP Token (If enabled. If not, press <enter>): ")
     apiObj = BitMEX(email, password, otpToken)
     print("\nSuccessfully logged in.")
     return apiObj
@@ -93,8 +93,10 @@ class BitMEX(object):
         if strtobool(input("Should this key be able to submit withdrawals? [y/N] ") or 'N'):
             permissions.append('withdraw')
 
+        otpToken = input("OTP Token (If enabled. If not, press <enter>): ")
+
         key = self._curl_bitmex("/apiKey",
-                                postdict={"name": name, "cidr": cidr, "enabled": True,
+                                postdict={"name": name, "cidr": cidr, "enabled": True, "token": otpToken,
                                           "permissions": string.join(permissions, ',')})
 
         print("Key created. Details:\n")
