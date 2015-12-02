@@ -207,8 +207,11 @@ class BitMEXWebsocket():
                 else:
                     self.error("Unable to subscribe to %s. Error: \"%s\" Please check and restart." %
                                (message['request']['args'][0], message['error']))
-            elif 'status' in message and message['status'] == 401:
-                self.error("Login information or API Key incorrect, please check and restart.")
+            elif 'status' in message:
+                if message['status'] == 400:
+                    self.error(message['error'])
+                if message['status'] == 401:
+                    self.error("Login information or API Key incorrect, please check and restart.")
             elif action:
 
                 if table not in self.data:
