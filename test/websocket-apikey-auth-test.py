@@ -86,7 +86,7 @@ def test_with_querystring():
 
 
 # Generates an API signature.
-# A signature is HMAC_SHA256(secret, verb + path + nonce + data), base64 encoded.
+# A signature is HMAC_SHA256(secret, verb + path + nonce + data), hex encoded.
 # Verb must be uppercased, url is relative, nonce must be an increasing 64-bit integer
 # and the data, if present, must be JSON without whitespace between keys.
 def bitmex_signature(apiSecret, verb, url, nonce, postdict=None):
