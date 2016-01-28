@@ -35,6 +35,66 @@ Getting Started
 1. Satisfied with your bot's performance? Create a [live API Key](https://www.bitmex.com/app/apiKeys) for your
    BitMEX account, set the `BASE_URL` and start trading!
 
+Operation Overview
+------------------
+
+This market maker works on the following principles:
+
+* The MM tracks the last bidPrice and askPrice of the quoted instrument to determine where to start quoting.
+* Based on parameters set the user, the bot creates a descriptions of orders it would like to place.
+  - If settings.MAINTAIN_SPREADS is set, the bot will start inside the current spread and work outwards.
+  - Otherwise, spread is determined by interval calculations.
+* If the user specified position limits, these are checked. If the current position is beyond a limit,
+  the bot stops quoting that side of the market.
+* These order descriptors are compared with what the bot has currently placed in the market.
+  - If an existing order can be amended to the desired value, it is amended.
+  - Otherwise, a new order is created.
+  - Extra orders are canceled.
+* The bot then prints details of contracts traded, tickers, and total delta.
+
+Simplified Output
+-----------------
+
+The following is some of what you can expect when running this bot:
+
+```
+2016-01-28 17:29:31,054 - INFO - market_maker - BitMEX Market Maker Version: 1.0
+2016-01-28 17:29:31,074 - INFO - ws_thread - Connecting to wss://testnet.bitmex.com/realtime?subscribe=quote:XBT7D,trade:XBT7D,instrument,order:XBT7D,execution:XBT7D,margin,position
+2016-01-28 17:29:31,074 - INFO - ws_thread - Authenticating with API Key.
+2016-01-28 17:29:31,075 - INFO - ws_thread - Started thread
+2016-01-28 17:29:32,079 - INFO - ws_thread - Connected to WS. Waiting for data images, this may take a moment...
+2016-01-28 17:29:32,079 - INFO - ws_thread - Got all market data. Starting.
+2016-01-28 17:29:32,079 - INFO - market_maker - Using symbol XBT7D.
+2016-01-28 17:29:32,079 - INFO - market_maker - Order Manager initializing, connecting to BitMEX. Live run: executing real trades.
+2016-01-28 17:29:32,079 - INFO - market_maker - Resetting current position. Cancelling all existing orders.
+2016-01-28 17:29:33,460 - INFO - market_maker - XBT7D Ticker: Buy: 388.61, Sell: 389.89
+2016-01-28 17:29:33,461 - INFO - market_maker - Start Positions: Buy: 388.62, Sell: 389.88, Mid: 389.25
+2016-01-28 17:29:33,461 - INFO - market_maker - Current XBT Balance: 3.443498
+2016-01-28 17:29:33,461 - INFO - market_maker - Current Contract Position: -1
+2016-01-28 17:29:33,461 - INFO - market_maker - Avg Cost Price: 389.75
+2016-01-28 17:29:33,461 - INFO - market_maker - Avg Entry Price: 389.75
+2016-01-28 17:29:33,462 - INFO - market_maker - Contracts Traded This Run: 0
+2016-01-28 17:29:33,462 - INFO - market_maker - Total Contract Delta: -17.7510 XBT
+2016-01-28 17:29:33,462 - INFO - market_maker - Creating 4 orders:
+2016-01-28 17:29:33,462 - INFO - market_maker - Sell 100 @ 389.88
+2016-01-28 17:29:33,462 - INFO - market_maker - Sell 200 @ 390.27
+2016-01-28 17:29:33,463 - INFO - market_maker -  Buy 100 @ 388.62
+2016-01-28 17:29:33,463 - INFO - market_maker -  Buy 200 @ 388.23
+-----
+2016-01-28 17:29:37,366 - INFO - ws_thread - Execution: Sell 1 Contracts of XBT7D at 389.88
+2016-01-28 17:29:38,943 - INFO - market_maker - XBT7D Ticker: Buy: 388.62, Sell: 389.88
+2016-01-28 17:29:38,943 - INFO - market_maker - Start Positions: Buy: 388.62, Sell: 389.88, Mid: 389.25
+2016-01-28 17:29:38,944 - INFO - market_maker - Current XBT Balance: 3.443496
+2016-01-28 17:29:38,944 - INFO - market_maker - Current Contract Position: -2
+2016-01-28 17:29:38,944 - INFO - market_maker - Avg Cost Price: 389.75
+2016-01-28 17:29:38,944 - INFO - market_maker - Avg Entry Price: 389.75
+2016-01-28 17:29:38,944 - INFO - market_maker - Contracts Traded This Run: -1
+2016-01-28 17:29:38,944 - INFO - market_maker - Total Contract Delta: -17.7510 XBT
+2016-01-28 17:29:38,945 - INFO - market_maker - Amending Sell: 99 @ 389.88 to 100 @ 389.88 (+0.00)
+
+```
+
+
 Notes on Rate Limiting
 ----------------------
 
