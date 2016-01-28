@@ -1,7 +1,10 @@
 BitMEX Market Maker
 ===================
 
-This is a sample market making bot for use with [BitMEX](https://testnet.bitmex.com).
+**Special Note**: Jan 28, 2015: This version of the market maker is in beta and will only work against the Testnet API.
+Use the tag `v1-nobulk` if you need to place orders on BitMEX.com.
+
+This is a sample market making bot for use with [BitMEX](https://www.bitmex.com).
 
 It is free to use and modify for your own strategies. It provides the following:
 
@@ -28,8 +31,27 @@ Getting Started
 1. Edit settings.py to add your BitMEX username and password and change bot parameters.
   * Run with DRY_RUN=True to test cost and spread.
 1. Run it: `./marketmaker [symbol]`
-1. Satisfied with your bot's performance? Create a [live API Key](https://testnet.bitmex.com/app/apiKeys) for your
+1. Want faster authentication? Create [an API Key](https://testnet.bitmex.com/app/apiKeys)
+1. Satisfied with your bot's performance? Create a [live API Key](https://www.bitmex.com/app/apiKeys) for your
    BitMEX account, set the `BASE_URL` and start trading!
+
+Notes on Rate Limiting
+----------------------
+
+By default, the BitMEX API rate limit is 300 requests per 5 minute interval (avg 1/second).
+
+This bot uses the WebSocket and bulk order placement/amend to greatly reduce the number of calls sent to the BitMEX API.
+
+Most calls to the API consume one request, except:
+
+* Bulk order placement/amend: Consumes 0.5 requests, rounded up, per order. For example, placing 9 orders consumes
+  5 requests.
+* Bulk order cancel: Consumes 1 request no matter the size. Is not blocked by an exceeded ratelimit; cancels will
+  always succeed. This bot will always cancel all orders on an error or interrupt.
+
+If you are quoting multiple contracts and your ratelimit is becoming an obstacle, please
+[email support](mailto:support@bitmex.com) with details of your quoting. In the vast majority of cases,
+we are able to raise a user's ratelimit without issue.
 
 
 Compatibility

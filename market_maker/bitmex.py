@@ -5,7 +5,6 @@ from time import sleep
 import json
 import uuid
 import logging
-import base64
 from market_maker.auth import AccessTokenAuth, APIKeyAuthWithExpires
 from market_maker.utils import constants, errors
 from market_maker.ws.ws_thread import BitMEXWebsocket
@@ -36,6 +35,8 @@ class BitMEX(object):
         self.session = requests.Session()
         # These headers are always sent
         self.session.headers.update({'user-agent': 'liquidbot-' + constants.VERSION})
+        self.session.headers.update({'content-type': 'application/json'})
+        self.session.headers.update({'accept': 'application/json'})
 
         # Create websocket for streaming data
         self.ws = BitMEXWebsocket()
@@ -44,25 +45,19 @@ class BitMEX(object):
     #
     # Public methods
     #
-    def ticker_data(self):
+    def ticker_data(self, symbol):
         """Get ticker data."""
-        return self.ws.get_ticker()
+        return self.ws.get_ticker(symbol)
 
-    def get_instrument(self):
+    def instrument(self, symbol):
         """Get an instrument's details."""
-        instrument = self.ws.get_instrument()
+        return self.ws.get_instrument(symbol)
 
-        if instrument["state"] != "Open":
-            self.logger.error("The instrument %s is no longer open. State: %s" % (self.symbol, instrument["state"]))
-            exit(1)
-
-        return instrument
-
-    def market_depth(self):
+    def market_depth(self, symbol):
         """Get market depth / orderbook."""
-        return self.ws.market_depth()
+        return self.ws.market_depth(symbol)
 
-    def recent_trades(self):
+    def recent_trades(self, symbol):
         """Get recent trades.
 
         Returns
@@ -74,7 +69,7 @@ class BitMEX(object):
                u'tid': u'93842'},
 
         """
-        return self.ws.recent_trades()
+        return self.ws.recent_trades(symbol)
 
     #
     # Authentication required methods
@@ -105,9 +100,9 @@ class BitMEX(object):
         return self.ws.funds()
 
     @authentication_required
-    def position(self):
+    def position(self, symbol):
         """Get your open position."""
-        return self.ws.position()
+        return self.ws.position(symbol)
 
     @authentication_required
     def buy(self, quantity, price):
@@ -133,7 +128,7 @@ class BitMEX(object):
 
         endpoint = "order"
         # Generate a unique clOrdID with our prefix so we can identify it.
-        clOrdID = self.orderIDPrefix + base64.b64encode(uuid.uuid4().bytes).decode('utf-8').rstrip('=\n')
+        clOrdID = self.orderIDPrefix + uuid.uuid4().bytes.encode('base64').rstrip('=\n')
         postdict = {
             'symbol': self.symbol,
             'quantity': quantity,
@@ -141,6 +136,19 @@ class BitMEX(object):
             'clOrdID': clOrdID
         }
         return self._curl_bitmex(api=endpoint, postdict=postdict, verb="POST")
+
+    @authentication_required
+    def amend_bulk_orders(self, orders):
+        """Amend multiple orders."""
+        return self._curl_bitmex(api='order/bulk', postdict={'orders': orders}, verb='PUT')
+
+    @authentication_required
+    def create_bulk_orders(self, orders):
+        """Create multiple orders."""
+        for order in orders:
+            order['clOrdID'] = self.orderIDPrefix + uuid.uuid4().bytes.encode('base64').rstrip('=\n')
+            order['symbol'] = self.symbol
+        return self._curl_bitmex(api='order/bulk', postdict={'orders': orders}, verb='POST')
 
     @authentication_required
     def open_orders(self):
@@ -195,7 +203,7 @@ class BitMEX(object):
 
         # Make the request
         try:
-            req = requests.Request(verb, url, data=postdict, auth=auth, params=query)
+            req = requests.Request(verb, url, json=postdict, auth=auth, params=query)
             prepped = self.session.prepare_request(req)
             response = self.session.send(prepped, timeout=timeout)
             # Make non-200s throw
@@ -238,10 +246,29 @@ class BitMEX(object):
                                     "Request: %s \n %s" % (url, json.dumps(postdict)))
                 sleep(1)
                 return self._curl_bitmex(api, query, postdict, timeout, verb)
+
+            # Duplicate clOrdID: that's fine, probably a deploy, go get the order and return it
+            elif (response.status_code == 400 and
+                  response.json()['error'] and
+                  response.json()['error']['message'] == 'Duplicate clOrdID'):
+
+                order = self._curl_bitmex('/order',
+                                          query={'filter': json.dumps({'clOrdID': postdict['clOrdID']})},
+                                          verb='GET')[0]
+                if (
+                        order['orderQty'] != postdict['quantity'] or
+                        order['price'] != postdict['price'] or
+                        order['symbol'] != postdict['symbol']):
+                    raise Exception('Attempted to recover from duplicate clOrdID, but order returned from API ' +
+                                    'did not match POST.\nPOST data: %s\nReturned order: %s' % (
+                                        json.dumps(postdict), json.dumps(order)))
+                # All good
+                return order
+
             # Unknown Error
             else:
-                self.logger.error("Unhandled Error: %s: %s" % (e, json.dumps(response.json(), indent=4)))
-                self.logger.error("Endpoint was: %s %s" % (verb, api))
+                self.logger.error("Unhandled Error: %s: %s %s" % (e, e.message, response.text))
+                self.logger.error("Endpoint was: %s %s: %s" % (verb, api, json.dumps(postdict)))
                 exit(1)
 
         except requests.exceptions.Timeout as e:

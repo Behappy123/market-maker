@@ -15,14 +15,14 @@ with hooks():  # Python 2/3 compat
     from urllib.parse import urlparse, urlunparse
 
 
-# Naive implementation of connecting to BitMEX websocket for streaming realtime data.
+# Connects to BitMEX websocket for streaming realtime data.
 # The Marketmaker still interacts with this as if it were a REST Endpoint, but now it can get
-# much more realtime data without polling the hell out of the API.
+# much more realtime data without heavily polling the API.
 #
 # The Websocket offers a bunch of data as raw properties right on the object.
 # On connect, it synchronously asks for a push of all this data then returns.
 # Right after, the MM can start using its data. It will be updated in realtime, so the MM can
-# poll really often if it wants.
+# poll as often as it wants.
 class BitMEXWebsocket():
 
     def __init__(self):
@@ -38,10 +38,11 @@ class BitMEXWebsocket():
 
         # We can subscribe right in the connection querystring, so let's build that.
         # Subscribe to all pertinent endpoints
-        subscriptions = [sub + ':' + symbol for sub in ["instrument", "quote", "trade"]]
+        subscriptions = [sub + ':' + symbol for sub in ["quote", "trade"]]
+        subscriptions += ["instrument"]  # We want all of them
         if self.shouldAuth:
-            subscriptions += [sub + ':' + symbol for sub in ["order", "execution", "position"]]
-            subscriptions += ["margin"]
+            subscriptions += [sub + ':' + symbol for sub in ["order", "execution"]]
+            subscriptions += ["margin", "position"]
 
         # Get WS URL and connect.
         urlParts = list(urlparse(endpoint))
@@ -50,27 +51,28 @@ class BitMEXWebsocket():
         wsURL = urlunparse(urlParts)
         self.logger.info("Connecting to %s" % wsURL)
         self.__connect(wsURL)
-        self.logger.info('Connected to WS. Fetching data images, this may take a moment...')
+        self.logger.info('Connected to WS. Waiting for data images, this may take a moment...')
 
         # Connected. Push symbols
-        self.__push_symbol(symbol)
+        self.__wait_for_symbol(symbol)
         if self.shouldAuth:
-            self.__push_account()
+            self.__wait_for_account()
         self.logger.info('Got all market data. Starting.')
 
     #
     # Data methods
     #
-    def get_instrument(self):
+    def get_instrument(self, symbol):
+        instruments = self.data['instrument']
+        instrument = [i for i in instruments if i['symbol'] == symbol][0]
         # Turn the 'tickSize' into 'tickLog' for use in rounding
-        instrument = self.data['instrument'][0]
         instrument['tickLog'] = int(math.fabs(math.log10(instrument['tickSize'])))
         return instrument
 
-    def get_ticker(self):
+    def get_ticker(self, symbol):
         '''Return a ticker object. Generated from instrument.'''
 
-        instrument = self.get_instrument()
+        instrument = self.get_instrument(symbol)
 
         # If this is an index, we have to get the data from the last trade.
         if instrument['symbol'][0] == '.':
@@ -78,8 +80,8 @@ class BitMEXWebsocket():
             ticker['mid'] = ticker['buy'] = ticker['sell'] = ticker['last'] = instrument['markPrice']
         # Normal instrument
         else:
-            bid = instrument['bidPrice'] or instrument['lastPrice'] or 0
-            ask = instrument['askPrice'] or instrument['lastPrice'] or 0
+            bid = instrument['bidPrice'] or instrument['lastPrice']
+            ask = instrument['askPrice'] or instrument['lastPrice']
             ticker = {
                 "last": instrument['lastPrice'],
                 "buy": bid,
@@ -93,18 +95,19 @@ class BitMEXWebsocket():
     def funds(self):
         return self.data['margin'][0]
 
-    def market_depth(self):
-        return self.data['orderBook25']
+    def market_depth(self, symbol):
+        raise NotImplementedError('orderBook is not subscribed; use askPrice and bidPrice on instrument')
+        # return self.data['orderBook25'][0]
 
     def open_orders(self, clOrdIDPrefix):
         orders = self.data['order']
         # Filter to only open orders (leavesQty > 0) and those that we actually placed
         return [o for o in orders if str(o['clOrdID']).startswith(clOrdIDPrefix) and o['leavesQty'] > 0]
 
-    def position(self):
+    def position(self, symbol):
         positions = self.data['position']
-        pos = [p for p in positions if p['symbol'] == self.symbol]
-        return pos[0] if len(pos) else {'currentQty': 0}
+        pos = [p for p in positions if p['symbol'] == symbol]
+        return pos[0] if len(pos) > 0 else {'avgCostPrice': 0, 'currentQty': 0}
 
     def recent_trades(self):
         return self.data['trade']
@@ -176,17 +179,15 @@ class BitMEXWebsocket():
                 "api-key:" + settings.API_KEY
             ]
 
-    def __push_account(self):
-        '''Ask the websocket for an account push. Gets margin, positions, and open orders'''
-        self.__send_command("getAccount")
+    def __wait_for_account(self):
+        '''On subscribe, this data will come down. Wait for it.'''
         # Wait for the keys to show up from the ws
         while not {'margin', 'position', 'order'} <= set(self.data):
             sleep(0.1)
 
-    def __push_symbol(self, symbol):
-        '''Ask the websocket for a symbol push. Gets instrument, orderBook, quote, and trade'''
-        self.__send_command("getSymbol", symbol)
-        while not {'instrument', 'trade', 'orderBook25', 'quote'} <= set(self.data):
+    def __wait_for_symbol(self, symbol):
+        '''On subscribe, this data will come down. Wait for it.'''
+        while not {'instrument', 'trade', 'quote'} <= set(self.data):
             sleep(0.1)
 
     def __send_command(self, command, args=[]):
@@ -241,6 +242,16 @@ class BitMEXWebsocket():
                         item = findItemByKeys(self.keys[table], self.data[table], updateData)
                         if not item:
                             return  # No item found to update. Could happen before push
+
+                        # Log executions
+                        is_canceled = 'ordStatus' in updateData and updateData['ordStatus'] == 'Canceled'
+                        if table == 'order' and 'leavesQty' in updateData and not is_canceled:
+                            instrument = self.get_instrument(item['symbol'])
+                            contExecuted = abs(item['leavesQty'] - updateData['leavesQty'])
+                            self.logger.info("Execution: %s %d Contracts of %s at %.*f" %
+                                             (item['side'], contExecuted, item['symbol'],
+                                              instrument['tickLog'], item['price']))
+
                         item.update(updateData)
                         # Remove cancelled / filled orders
                         if table == 'order' and item['leavesQty'] <= 0:
@@ -293,6 +304,9 @@ if __name__ == "__main__":
     # add formatter to ch
     ch.setFormatter(formatter)
     logger.addHandler(ch)
-    ws = BitMEXWebsocket("https://testnet.bitmex.com/api/v1")
+    ws = BitMEXWebsocket()
+    ws.logger = logger
+    ws.connect("https://testnet.bitmex.com/api/v1")
     while(ws.ws.sock.connected):
         sleep(1)
+
