@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import requests
 from time import sleep
 import json
+import base64
 import uuid
 import logging
 from market_maker.auth import AccessTokenAuth, APIKeyAuthWithExpires
@@ -128,7 +129,7 @@ class BitMEX(object):
 
         endpoint = "order"
         # Generate a unique clOrdID with our prefix so we can identify it.
-        clOrdID = self.orderIDPrefix + uuid.uuid4().bytes.encode('base64').rstrip('=\n')
+        clOrdID = self.orderIDPrefix + base64.b64encode(uuid.uuid4().bytes).decode('utf-8').rstrip('=\n')
         postdict = {
             'symbol': self.symbol,
             'quantity': quantity,
@@ -146,7 +147,7 @@ class BitMEX(object):
     def create_bulk_orders(self, orders):
         """Create multiple orders."""
         for order in orders:
-            order['clOrdID'] = self.orderIDPrefix + uuid.uuid4().bytes.encode('base64').rstrip('=\n')
+            order['clOrdID'] = self.orderIDPrefix + base64.b64encode(uuid.uuid4().bytes).decode('utf-8').rstrip('=\n')
             order['symbol'] = self.symbol
         return self._curl_bitmex(api='order/bulk', postdict={'orders': orders}, verb='POST')
 

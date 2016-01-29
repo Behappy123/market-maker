@@ -172,7 +172,7 @@ class ExchangeInterface:
         """This function checks whether the order book is empty"""
         instrument = self.get_instrument()
         if instrument['midPrice'] == None:
-            raise Errors.MarketEmptyError("Orderbook is empty, cannot quote")
+            raise errors.MarketEmptyError("Orderbook is empty, cannot quote")
             sys.exit()
 
     def amend_bulk_orders(self, orders):
