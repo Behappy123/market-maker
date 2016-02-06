@@ -25,6 +25,9 @@ with hooks():  # Python 2/3 compat
 # poll as often as it wants.
 class BitMEXWebsocket():
 
+    # Don't grow a table larger than this amount. Helps cap memory usage.
+    MAX_TABLE_LEN = 200
+
     def __init__(self):
         self.logger = logging.getLogger('root')
         self.__reset()
@@ -53,7 +56,7 @@ class BitMEXWebsocket():
         self.__connect(wsURL)
         self.logger.info('Connected to WS. Waiting for data images, this may take a moment...')
 
-        # Connected. Push symbols
+        # Connected. Wait for partials
         self.__wait_for_symbol(symbol)
         if self.shouldAuth:
             self.__wait_for_account()
@@ -235,6 +238,12 @@ class BitMEXWebsocket():
                 elif action == 'insert':
                     self.logger.debug('%s: inserting %s' % (table, message['data']))
                     self.data[table] += message['data']
+
+                    # Limit the max length of the table to avoid excessive memory usage.
+                    # Don't trim orders because we'll lose valuable state if we do.
+                    if table != 'order' and len(self.data[table]) > BitMEXWebsocket.MAX_TABLE_LEN:
+                        self.data[table] = self.data[table][(BitMEXWebsocket.MAX_TABLE_LEN / 2):]
+
                 elif action == 'update':
                     self.logger.debug('%s: updating %s' % (table, message['data']))
                     # Locate the item in the collection and update it.
