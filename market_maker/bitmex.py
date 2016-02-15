@@ -141,7 +141,7 @@ class BitMEX(object):
     @authentication_required
     def amend_bulk_orders(self, orders):
         """Amend multiple orders."""
-        return self._curl_bitmex(api='order/bulk', postdict={'orders': orders}, verb='PUT')
+        return self._curl_bitmex(api='order/bulk', postdict={'orders': orders}, verb='PUT', rethrow_errors=True)
 
     @authentication_required
     def create_bulk_orders(self, orders):
@@ -188,7 +188,7 @@ class BitMEX(object):
         }
         return self._curl_bitmex(api=api, postdict=postdict, verb="POST")
 
-    def _curl_bitmex(self, api, query=None, postdict=None, timeout=3, verb=None):
+    def _curl_bitmex(self, api, query=None, postdict=None, timeout=3, verb=None, rethrow_errors=False):
         """Send a request to BitMEX Servers."""
         # Handle URL
         url = self.base_url + api
@@ -201,6 +201,12 @@ class BitMEX(object):
         auth = AccessTokenAuth(self.token)
         if self.apiKey:
             auth = APIKeyAuthWithExpires(self.apiKey, self.apiSecret)
+
+        def maybe_exit(e):
+            if rethrow_errors:
+                raise e
+            else:
+                exit(1)
 
         # Make the request
         try:
@@ -218,6 +224,7 @@ class BitMEX(object):
                     self.logger.error("Error: " + response.text)
                     if postdict:
                         self.logger.error(postdict)
+                    # Always exit, even if rethrow_errors, because this is fatal
                     exit(1)
                 self.logger.warning("Token expired, reauthenticating...")
                 sleep(1)
@@ -231,7 +238,7 @@ class BitMEX(object):
                     return
                 self.logger.error("Unable to contact the BitMEX API (404). " +
                                   "Request: %s \n %s" % (url, json.dumps(postdict)))
-                exit(1)
+                maybe_exit(e)
 
             # 429, ratelimit
             elif response.status_code == 429:
@@ -270,7 +277,7 @@ class BitMEX(object):
             else:
                 self.logger.error("Unhandled Error: %s: %s %s" % (e, e.message, response.text))
                 self.logger.error("Endpoint was: %s %s: %s" % (verb, api, json.dumps(postdict)))
-                exit(1)
+                maybe_exit(e)
 
         except requests.exceptions.Timeout as e:
             # Timeout, re-run this request
