@@ -358,7 +358,10 @@ class OrderManager:
             except IndexError:
                 to_cancel.append(order)
 
-            if desired_order['orderQty'] != order['leavesQty'] or desired_order['price'] != order['price']:
+            if desired_order['orderQty'] != order['leavesQty'] or (
+                    # If price has changed, and the change is more than our RELIST_INTERVAL, amend.
+                    desired_order['price'] != order['price'] and
+                    abs((desired_order['price'] / order['price']) - 1) > settings.RELIST_INTERVAL):
                 to_amend.append({'orderID': order['orderID'], 'leavesQty': desired_order['orderQty'],
                                  'price': desired_order['price'], 'side': order['side']})
 
