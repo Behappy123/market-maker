@@ -347,6 +347,8 @@ class OrderManager:
         sells_matched = 0
         existing_orders = self.exchange.get_orders()
 
+        # Check all existing orders and match them up with what we want to place.
+        # If there's an open one, we might be able to amend it to fit what we want.
         for order in existing_orders:
             try:
                 if order['side'] == 'Buy':
@@ -355,15 +357,17 @@ class OrderManager:
                 else:
                     desired_order = sell_orders[sells_matched]
                     sells_matched += 1
-            except IndexError:
-                to_cancel.append(order)
 
-            if desired_order['orderQty'] != order['leavesQty'] or (
-                    # If price has changed, and the change is more than our RELIST_INTERVAL, amend.
-                    desired_order['price'] != order['price'] and
-                    abs((desired_order['price'] / order['price']) - 1) > settings.RELIST_INTERVAL):
-                to_amend.append({'orderID': order['orderID'], 'leavesQty': desired_order['orderQty'],
-                                 'price': desired_order['price'], 'side': order['side']})
+                # Found an existing order. Do we need to amend it?
+                if desired_order['orderQty'] != order['leavesQty'] or (
+                        # If price has changed, and the change is more than our RELIST_INTERVAL, amend.
+                        desired_order['price'] != order['price'] and
+                        abs((desired_order['price'] / order['price']) - 1) > settings.RELIST_INTERVAL):
+                    to_amend.append({'orderID': order['orderID'], 'leavesQty': desired_order['orderQty'],
+                                     'price': desired_order['price'], 'side': order['side']})
+            except IndexError:
+                # Will throw if there isn't a desired order to match. In that case, cancel it.
+                to_cancel.append(order)
 
         while buys_matched < len(buy_orders):
             to_create.append(buy_orders[buys_matched])
