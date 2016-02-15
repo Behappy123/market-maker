@@ -1,9 +1,6 @@
 BitMEX Market Maker
 ===================
 
-**Special Note**: Jan 28, 2015: This version of the market maker is in beta and will only work against the Testnet API.
-Use the tag `v1-nobulk` if you need to place orders on BitMEX.com.
-
 This is a sample market making bot for use with [BitMEX](https://www.bitmex.com).
 
 It is free to use and modify for your own strategies. It provides the following:
