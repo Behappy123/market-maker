@@ -13,7 +13,6 @@ It is free to use and modify for your own strategies. It provides the following:
   * [Permanent API Key](https://testnet.bitmex.com/app/apiKeys) support is included.
 * A scaffolding for building your own trading strategies.
   * Out of the box, a simple market making strategy is implemented that blankets the bid and ask.
-    to tune it.
   * More complicated strategies are up to the user. Try incorporating [index data](https://testnet.bitmex.com/app/index/.XBT),
     query other markets to catch moves early, or develop your own completely custom strategy.
 
