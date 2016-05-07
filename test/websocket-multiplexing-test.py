@@ -59,10 +59,10 @@ def test_with_message():
         print("Received '%s'" % result)
 
         # Send a request that requires authorization on this multiplexed connection.
-        op = {"op": "getAccount"}
+        op = {"op":"subscribe", "args":"position"}
         request = [0, connID, channelName, op]
         ws.send(json.dumps(request))
-        print("Sent getAccount")
+        print("Sent subscribe")
         result = ws.recv()
         print("Received '%s'" % result)
         result = ws.recv()

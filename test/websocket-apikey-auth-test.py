@@ -48,9 +48,9 @@ def test_with_message():
     print("Received '%s'" % result)
 
     # Send a request that requires authorization.
-    request = {"op": "getAccount"}
+    request = {"op": "subscribe", "args": "position"}
     ws.send(json.dumps(request))
-    print("Sent getAccount")
+    print("Sent subscribe")
     result = ws.recv()
     print("Received '%s'" % result)
     result = ws.recv()
@@ -74,9 +74,9 @@ def test_with_querystring():
     print("Received '%s'" % result)
 
     # Send a request that requires authorization.
-    request = {"op": "getAccount"}
+    request = {"op": "subscribe", "args": "position"}
     ws.send(json.dumps(request))
-    print("Sent getAccount")
+    print("Sent subscribe")
     result = ws.recv()
     print("Received '%s'" % result)
     result = ws.recv()
