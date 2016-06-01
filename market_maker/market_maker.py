@@ -3,8 +3,10 @@ from time import sleep
 import sys
 from datetime import datetime
 from os.path import getmtime
-import string
+import random
+import requests
 import atexit
+import signal
 
 from market_maker import bitmex
 from market_maker.settings import settings
@@ -171,7 +173,7 @@ class ExchangeInterface:
     def check_if_orderbook_empty(self):
         """This function checks whether the order book is empty"""
         instrument = self.get_instrument()
-        if instrument['midPrice'] == None:
+        if instrument['midPrice'] is None:
             raise errors.MarketEmptyError("Orderbook is empty, cannot quote")
             sys.exit()
 
@@ -197,6 +199,7 @@ class OrderManager:
         # Once exchange is created, register exit handler that will always cancel orders
         # on any error.
         atexit.register(self.exit)
+        signal.signal(signal.SIGTERM, self.exit)
 
         logger.info("Using symbol %s." % self.exchange.symbol)
 
@@ -236,7 +239,7 @@ class OrderManager:
         logger.info("Current Contract Position: %d" % self.running_qty)
         if settings.CHECK_POSITION_LIMITS:
             logger.info("Position limits: %d/%d" % (settings.MIN_POSITION, settings.MAX_POSITION))
-        if position['avgCostPrice'] != None:
+        if position['avgCostPrice'] is not None:
             logger.info("Avg Cost Price: %.2f" % float(position['avgCostPrice']))
             logger.info("Avg Entry Price: %.2f" % float(position['avgEntryPrice']))
         logger.info("Contracts Traded This Run: %d" % (self.running_qty - self.starting_qty))
@@ -318,10 +321,6 @@ class OrderManager:
 
         return self.converge_orders(buy_orders, sell_orders)
 
-        # derp
-        # logger.info("Order rejected: %s (%d @ $%.2f %s)" %
-        #             (order['ordRejReason'], quantity, price, order['symbol']))
-
     def prepare_order(self, index):
         """Create an order object."""
 
@@ -400,7 +399,7 @@ class OrderManager:
                     return self.place_orders()
                 else:
                     logger.error("Unknown error on amend: %s. Exiting" % errorObj)
-                    exit(1)
+                    sys.exit(1)
 
         if len(to_create) > 0:
             logger.info("Creating %d orders:" % (len(to_create)))
@@ -475,7 +474,7 @@ class OrderManager:
     def check_file_change(self):
         """Restart if any files we're watching have changed."""
         for f, mtime in watched_files_mtimes:
-             if getmtime(f) > mtime:
+            if getmtime(f) > mtime:
                 self.restart()
 
     def check_connection(self):
