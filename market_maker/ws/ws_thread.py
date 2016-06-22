@@ -4,9 +4,8 @@ import threading
 import traceback
 from time import sleep
 import json
-import string
+import decimal
 import logging
-import math
 from market_maker.settings import settings
 from market_maker.auth.APIKeyAuth import generate_nonce, generate_signature
 from future.utils import iteritems
@@ -72,7 +71,8 @@ class BitMEXWebsocket():
             raise Exception("Unable to find instrument or index with symbol: " + symbol)
         instrument = matchingInstruments[0]
         # Turn the 'tickSize' into 'tickLog' for use in rounding
-        instrument['tickLog'] = int(math.fabs(math.log10(instrument['tickSize'])))
+        # http://stackoverflow.com/a/6190291/832202
+        instrument['tickLog'] = decimal.Decimal(str(instrument['tickSize'])).as_tuple().exponent * -1
         return instrument
 
     def get_ticker(self, symbol):
