@@ -24,7 +24,7 @@ API_SECRET = ""
 ########################################################################################################################
 
 # Instrument to market make on BitMEX.
-SYMBOL = "XBTZ14"
+SYMBOL = "XBTUSD"
 
 
 ########################################################################################################################
@@ -110,4 +110,4 @@ WATCHED_FILES = [join("market_maker", f) for f in ["market_maker.py", "bitmex.py
 ########################################################################################################################
 
 # Specify the contracts that you hold. These will be used in portfolio calculations.
-CONTRACTS = ['XBT7D', 'XBT24H']
+CONTRACTS = ['XBTUSD']
