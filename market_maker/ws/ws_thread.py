@@ -67,7 +67,10 @@ class BitMEXWebsocket():
     #
     def get_instrument(self, symbol):
         instruments = self.data['instrument']
-        instrument = [i for i in instruments if i['symbol'] == symbol][0]
+        matchingInstruments = [i for i in instruments if i['symbol'] == symbol]
+        if len(matchingInstruments) == 0:
+            raise Exception("Unable to find instrument or index with symbol: " + symbol)
+        instrument = matchingInstruments[0]
         # Turn the 'tickSize' into 'tickLog' for use in rounding
         instrument['tickLog'] = int(math.fabs(math.log10(instrument['tickSize'])))
         return instrument
