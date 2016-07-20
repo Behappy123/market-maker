@@ -132,7 +132,7 @@ class BitMEX(object):
         clOrdID = self.orderIDPrefix + base64.b64encode(uuid.uuid4().bytes).decode('utf-8').rstrip('=\n')
         postdict = {
             'symbol': self.symbol,
-            'quantity': quantity,
+            'orderQty': quantity,
             'price': price,
             'clOrdID': clOrdID
         }
