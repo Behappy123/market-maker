@@ -113,7 +113,7 @@ class BitMEXWebsocket():
     def position(self, symbol):
         positions = self.data['position']
         pos = [p for p in positions if p['symbol'] == symbol]
-        return pos[0] if len(pos) > 0 else {'avgCostPrice': 0, 'currentQty': 0}
+        return pos[0] if len(pos) > 0 else {'avgCostPrice': 0, 'avgEntryPrice': 0, 'currentQty': 0}
 
     def recent_trades(self):
         return self.data['trade']
