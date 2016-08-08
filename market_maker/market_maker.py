@@ -239,7 +239,7 @@ class OrderManager:
         logger.info("Current Contract Position: %d" % self.running_qty)
         if settings.CHECK_POSITION_LIMITS:
             logger.info("Position limits: %d/%d" % (settings.MIN_POSITION, settings.MAX_POSITION))
-        if 'avgCostPrice' in position and 'avgEntryPrice' in position and position['avgCostPrice'] > 0:
+        if position['currentQty'] != 0:
             logger.info("Avg Cost Price: %.2f" % float(position['avgCostPrice']))
             logger.info("Avg Entry Price: %.2f" % float(position['avgEntryPrice']))
         logger.info("Contracts Traded This Run: %d" % (self.running_qty - self.starting_qty))
