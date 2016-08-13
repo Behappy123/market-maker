@@ -275,7 +275,7 @@ class BitMEX(object):
 
             # Unknown Error
             else:
-                self.logger.error("Unhandled Error: %s: %s %s" % (e, e.message, response.text))
+                self.logger.error("Unhandled Error: %s: %s" % (e, response.text))
                 self.logger.error("Endpoint was: %s %s: %s" % (verb, api, json.dumps(postdict)))
                 maybe_exit(e)
 
