@@ -26,6 +26,10 @@ class BitMEX(object):
         self.login = login
         self.password = password
         self.otpToken = otpToken
+        # User/pass auth is no longer supported
+        if (login or password or otpToken):
+            raise Exception("User/password authentication is no longer supported via the API. Please use " +
+                            "an API key. You can generate one at https://www.bitmex.com/app/apiKeys")
         self.apiKey = apiKey
         self.apiSecret = apiSecret
         if len(orderIDPrefix) > 13:
