@@ -451,8 +451,7 @@ class OrderManager:
         # Sanity check:
         if self.get_price_offset(-1) >= ticker["sell"] or self.get_price_offset(1) <= ticker["buy"]:
             logger.error(self.start_position_buy, self.start_position_sell)
-            logger.error("%s %s %s %s" % (self.get_price_offset(-1), ticker["sell"], self.get_price_offset(1),
-                                          ticker["buy"]))
+            logger.error("%s %s %s %s" % (self.get_price_offset(-1), ticker["sell"], self.get_price_offset(1), ticker["buy"]))
             logger.error("Sanity check failed, exchange data is inconsistent")
             sys.exit()
 
