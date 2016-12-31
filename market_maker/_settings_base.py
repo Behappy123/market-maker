@@ -45,11 +45,16 @@ MIN_SPREAD = 0.01
 # rather than starting in the middle and killing potentially profitable spreads.
 MAINTAIN_SPREADS = True
 
+# This number defines far much the price of an existing order can be from a desired order before it is amended.
+# This is useful for avoiding unnecessary calls and maintaining your ratelimits.
+#
+# Further information:
 # Each order is designed to be (INTERVAL*n)% away from the spread.
 # If the spread changes and the order has moved outside its bound defined as
 # (INTERVAL*n) - RELIST_INTERVAL < current_spread < (INTERVAL*n) + RELIST+INTERVAL
 # it will be resubmitted.
-# 0.01 = 1%
+#
+# 0.01 == 1%
 RELIST_INTERVAL = 0.01
 
 
