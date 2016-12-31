@@ -23,9 +23,6 @@ class BitMEX(object):
         self.base_url = base_url
         self.symbol = symbol
         self.token = None
-        self.login = login
-        self.password = password
-        self.otpToken = otpToken
         # User/pass auth is no longer supported
         if (login or password or otpToken):
             raise Exception("User/password authentication is no longer supported via the API. Please use " +
@@ -79,20 +76,10 @@ class BitMEX(object):
     #
     # Authentication required methods
     #
-    def authenticate(self):
-        """Set BitMEX authentication information."""
-        if self.apiKey:
-            return
-        loginResponse = self._curl_bitmex(
-            api="user/login",
-            postdict={'email': self.login, 'password': self.password, 'token': self.otpToken})
-        self.token = loginResponse['id']
-        self.session.headers.update({'access-token': self.token})
-
     def authentication_required(function):
         """Annotation for methods that require auth."""
         def wrapped(self, *args, **kwargs):
-            if not (self.token or self.apiKey):
+            if not (self.apiKey):
                 msg = "You must be authenticated to use this method"
                 raise errors.AuthenticationError(msg)
             else:
@@ -221,18 +208,14 @@ class BitMEX(object):
             response.raise_for_status()
 
         except requests.exceptions.HTTPError as e:
-            # 401 - Auth error. Re-auth and re-run this request.
+            # 401 - Auth error. This is fatal with API keys.
             if response.status_code == 401:
-                if self.token is None:
-                    self.logger.error("Login information or API Key incorrect, please check and restart.")
-                    self.logger.error("Error: " + response.text)
-                    if postdict:
-                        self.logger.error(postdict)
-                    # Always exit, even if rethrow_errors, because this is fatal
-                    exit(1)
-                self.logger.warning("Token expired, reauthenticating...")
-                sleep(1)
-                self.authenticate()
+                self.logger.error("Login information or API Key incorrect, please check and restart.")
+                self.logger.error("Error: " + response.text)
+                if postdict:
+                    self.logger.error(postdict)
+                # Always exit, even if rethrow_errors, because this is fatal
+                exit(1)
                 return self._curl_bitmex(api, query, postdict, timeout, verb)
 
             # 404, can be thrown if order canceled does not exist.

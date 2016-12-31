@@ -34,10 +34,6 @@ class ExchangeInterface:
                                     password=settings.PASSWORD, otpToken=settings.OTPTOKEN, apiKey=settings.API_KEY,
                                     apiSecret=settings.API_SECRET, orderIDPrefix=settings.ORDERID_PREFIX)
 
-    def authenticate(self):
-        if not self.dry_run:
-            self.bitmex.authenticate()
-
     def cancel_order(self, order):
         logger.info("Cancelling: %s %d @ %.2f" % (order['side'], order['orderQty'], "@", order['price']))
         while True:
@@ -209,7 +205,6 @@ class OrderManager:
         else:
             logger.info("Order Manager initializing, connecting to BitMEX. Live run: executing real trades.")
 
-        self.exchange.authenticate()
         self.start_time = datetime.now()
         self.instrument = self.exchange.get_instrument()
         self.starting_qty = self.exchange.get_delta()
