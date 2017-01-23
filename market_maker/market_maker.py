@@ -320,11 +320,12 @@ class OrderManager:
         # then we match orders from the outside in, ensuring the fewest number of orders are amended and only
         # a new order is created in the inside. If we did it inside-out, all orders would be amended
         # down and a new order would be created at the outside.
-        for i in reversed(range(1, settings.ORDER_PAIRS + 1)):
-            if not self.long_position_limit_exceeded():
-                buy_orders.append(self.prepare_order(-i))
-            if not self.short_position_limit_exceeded():
-                sell_orders.append(self.prepare_order(i))
+        if self.enough_liquidity():
+            for i in reversed(range(1, settings.ORDER_PAIRS + 1)):
+                if not self.long_position_limit_exceeded():
+                    buy_orders.append(self.prepare_order(-i))
+                if not self.short_position_limit_exceeded():
+                    sell_orders.append(self.prepare_order(i))
 
         return self.converge_orders(buy_orders, sell_orders)
 
@@ -439,6 +440,21 @@ class OrderManager:
         position = self.exchange.get_delta()
         return position >= settings.MAX_POSITION
 
+    ###
+    # Liquidity
+    ##
+    def enough_liquidity(self):
+        "Returns true if there is enough liquidity on each side of the order book"
+        enough_liquidity = False
+        ticker = self.exchange.get_ticker()
+        order_book = self.exchange.market_depth()
+        highest_buy = self.exchange.get_highest_buy()
+        lowest_sell = self.exchange.get_lowest_sell()
+
+        bid_liquid = order_book[0]["bidSize"] + order_book[1]["bidSize"] - highest_buy["orderQty"]
+        ask_liquid = order_book[0]["askSize"] + order_book[1]["askSize"] - lowest_sell["orderQty"]
+        enough_liquidity = ((ask_liquid >= settings.MIN_CONTRACTS) and (bid_liquid >= settings.MIN_CONTRACTS))
+    
     ###
     # Sanity
     ##

@@ -20,7 +20,8 @@ API_SECRET = ""
 
 # Instrument to market make on BitMEX.
 SYMBOL = "XBTUSD"
-
+# Minumum contracts per side to continue trading
+MIN_CONTRACTS = 5000
 
 ########################################################################################################################
 # Order Size & Spread
