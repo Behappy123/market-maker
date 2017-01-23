@@ -154,6 +154,11 @@ class ExchangeInterface:
         if symbol is None:
             symbol = self.symbol
         return self.bitmex.ticker_data(symbol)
+    
+    def market_depth(self, symbol=None):
+        if symbol is None:
+            symbol = self.symbol
+        return self.bitmex.market_depth(symbol)
 
     def is_open(self):
         """Check that websockets are still open."""
@@ -242,21 +247,28 @@ class OrderManager:
 
     def get_ticker(self):
         ticker = self.exchange.get_ticker()
+        order_book = self.exchange.market_depth()
+        highest_buy = self.exchange.get_highest_buy()
+        lowest_sell = self.exchange.get_lowest_sell()
 
         # Set up our buy & sell positions as the smallest possible unit above and below the current spread
         # and we'll work out from there. That way we always have the best price but we don't kill wide
         # and potentially profitable spreads.
-        self.start_position_buy = ticker["buy"] + self.instrument['tickSize']
-        self.start_position_sell = ticker["sell"] - self.instrument['tickSize']
+        buy_start = ticker["buy"]
+        sell_start = ticker["sell"]
+        
 
         # If we're maintaining spreads and we already have orders in place,
         # make sure they're not ours. If they are, we need to adjust, otherwise we'll
         # just work the orders inward until they collide.
         if settings.MAINTAIN_SPREADS:
-            if ticker['buy'] == self.exchange.get_highest_buy()['price']:
-                self.start_position_buy = ticker["buy"]
-            if ticker['sell'] == self.exchange.get_lowest_sell()['price']:
-                self.start_position_sell = ticker["sell"]
+            if (order_book[0]["bidPrice"] == highest_buy["price"]) and (order_book[0]["bidSize"] == highest_buy["orderQty"]):
+                buy_start = order_book[1]["bidPrice"]
+            if (order_book[0]["askPrice"] == lowest_sell["price"]) and (order_book[0]["askSize"] == lowest_sell["orderQty"]):
+                sell_start = order_book[1]["askPrice"]
+                
+        self.start_position_buy = buy_start + self.instrument['tickSize']
+        self.start_position_sell = sell_start - self.instrument['tickSize']
 
         # Back off if our spread is too small.
         if self.start_position_buy * (1.00 + settings.MIN_SPREAD) > self.start_position_sell:
