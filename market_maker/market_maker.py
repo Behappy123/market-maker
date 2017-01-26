@@ -134,14 +134,14 @@ class ExchangeInterface:
     def get_highest_buy(self):
         buys = [o for o in self.get_orders() if o['side'] == 'Buy']
         if not len(buys):
-            return {'price': -2**32}
+            return {'price': -2**32, 'orderQty':0}
         highest_buy = max(buys or [], key=lambda o: o['price'])
         return highest_buy if highest_buy else {'price': -2**32}
 
     def get_lowest_sell(self):
         sells = [o for o in self.get_orders() if o['side'] == 'Sell']
         if not len(sells):
-            return {'price': 2**32}
+            return {'price': 2**32, 'orderQty':0}
         lowest_sell = min(sells or [], key=lambda o: o['price'])
         return lowest_sell if lowest_sell else {'price': 2**32}  # ought to be enough for anyone
 
@@ -453,7 +453,17 @@ class OrderManager:
 
         bid_liquid = order_book[0]["bidSize"] + order_book[1]["bidSize"] - highest_buy["orderQty"]
         ask_liquid = order_book[0]["askSize"] + order_book[1]["askSize"] - lowest_sell["orderQty"]
-        enough_liquidity = ((ask_liquid >= settings.MIN_CONTRACTS) and (bid_liquid >= settings.MIN_CONTRACTS))
+        enough_ask_liquidity = ask_liquid >= settings.MIN_CONTRACTS
+        enough_bid_liquidity = bid_liquid >= settings.MIN_CONTRACTS
+        enough_liquidity = (enough_ask_liquidity and enough_bid_liquidity)
+        if not enough_liquidity:
+            if (not enough_bid_liquidity) and (not enough_ask_liquidity):
+                logger.info("Neither side has enough liquidity")
+            elif not enough_bid_liquidity:
+                logger.info("Bid side is not liquid enough")
+            else:
+                logger.info("Ask side is not liquid enough")
+        return enough_liquidity
     
     ###
     # Sanity
