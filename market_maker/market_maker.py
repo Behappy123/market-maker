@@ -265,12 +265,18 @@ class OrderManager:
         if settings.MAINTAIN_SPREADS:
             bid_levels = [x["bidSize"] for x in filter(lambda x: x["bidSize"]!=None, order_book)]
             bid_prices = [x["bidPrice"] for x in filter(lambda x: x["bidPrice"]!=None, order_book)]
-            bid_index = next(x[0] for x in enumerate(np.cumsum(bid_levels)) if x[1] > settings.MIN_CONTRACTS)
+            bid_index = next(x[0] for x in enumerate(np.cumsum(bid_levels)-highest_buy["orderQty"]) if x[1] > settings.MIN_CONTRACTS)
             buy_start = bid_prices[bid_index]
+            print("Bid Prices: "+str(bid_prices))
+            print("Bid Levels: "+str(bid_levels))
+            print("Bid Index: "+str(bid_index))
             ask_levels = [x["askSize"] for x in filter(lambda x: x["askSize"]!=None, order_book)]
             ask_prices = [x["askPrice"] for x in filter(lambda x: x["askPrice"]!=None, order_book)]
-            ask_index = next(x[0] for x in enumerate(np.cumsum(ask_levels)) if x[1] > settings.MIN_CONTRACTS)
+            ask_index = next(x[0] for x in enumerate(np.cumsum(ask_levels)-lowest_sell["orderQty"]) if x[1] > settings.MIN_CONTRACTS)
             sell_start = ask_prices[ask_index]
+            print("Ask Prices: "+str(ask_prices))
+            print("Ask Levels: "+str(ask_levels))
+            print("Ask Index: "+str(ask_index))
                 
         self.start_position_buy = buy_start + self.instrument['tickSize']
         self.start_position_sell = sell_start - self.instrument['tickSize']
