@@ -7,6 +7,8 @@ import random
 import requests
 import atexit
 import signal
+from operator import itemgetter
+import numpy as np
 
 from market_maker import bitmex
 from market_maker.settings import settings
@@ -247,7 +249,7 @@ class OrderManager:
 
     def get_ticker(self):
         ticker = self.exchange.get_ticker()
-        order_book = self.exchange.market_depth()
+        order_book = sorted(self.exchange.market_depth(), key=itemgetter('level'))
         highest_buy = self.exchange.get_highest_buy()
         lowest_sell = self.exchange.get_lowest_sell()
 
@@ -257,15 +259,18 @@ class OrderManager:
         buy_start = ticker["buy"]
         sell_start = ticker["sell"]
         
-
         # If we're maintaining spreads and we already have orders in place,
         # make sure they're not ours. If they are, we need to adjust, otherwise we'll
         # just work the orders inward until they collide.
         if settings.MAINTAIN_SPREADS:
-            if (order_book[0]["bidPrice"] == highest_buy["price"]) and (order_book[0]["bidSize"] == highest_buy["orderQty"]):
-                buy_start = order_book[1]["bidPrice"]
-            if (order_book[0]["askPrice"] == lowest_sell["price"]) and (order_book[0]["askSize"] == lowest_sell["orderQty"]):
-                sell_start = order_book[1]["askPrice"]
+            bid_levels = [x["bidSize"] for x in filter(lambda x: x["bidSize"]!=None, order_book)]
+            bid_prices = [x["bidPrice"] for x in filter(lambda x: x["bidPrice"]!=None, order_book)]
+            bid_index = next(x[0] for x in enumerate(np.cumsum(bid_levels)) if x[1] > settings.MIN_CONTRACTS)
+            buy_start = bid_prices[bid_index]
+            ask_levels = [x["askSize"] for x in filter(lambda x: x["askSize"]!=None, order_book)]
+            ask_prices = [x["askPrice"] for x in filter(lambda x: x["askPrice"]!=None, order_book)]
+            ask_index = next(x[0] for x in enumerate(np.cumsum(ask_levels)) if x[1] > settings.MIN_CONTRACTS)
+            sell_start = ask_prices[ask_index]
                 
         self.start_position_buy = buy_start + self.instrument['tickSize']
         self.start_position_sell = sell_start - self.instrument['tickSize']
@@ -451,8 +456,13 @@ class OrderManager:
         highest_buy = self.exchange.get_highest_buy()
         lowest_sell = self.exchange.get_lowest_sell()
 
-        bid_liquid = order_book[0]["bidSize"] + order_book[1]["bidSize"] - highest_buy["orderQty"]
-        ask_liquid = order_book[0]["askSize"] + order_book[1]["askSize"] - lowest_sell["orderQty"]
+        bid_depth = sum([x["bidSize"] for x in filter(lambda x: x["bidSize"]!=None, order_book)])
+        ask_depth = sum([x["askSize"] for x in filter(lambda x: x["askSize"]!=None, order_book)])
+
+        bid_liquid = bid_depth - highest_buy["orderQty"]
+        logger.info("Bid Liquidity: "+str(bid_liquid)+" Contracts")
+        ask_liquid = ask_depth - lowest_sell["orderQty"]
+        logger.info("Ask Liquidity: "+str(ask_liquid)+" Contracts")
         enough_ask_liquidity = ask_liquid >= settings.MIN_CONTRACTS
         enough_bid_liquidity = bid_liquid >= settings.MIN_CONTRACTS
         enough_liquidity = (enough_ask_liquidity and enough_bid_liquidity)
