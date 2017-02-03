@@ -125,7 +125,8 @@ class BitMEX(object):
             'symbol': self.symbol,
             'orderQty': quantity,
             'price': price,
-            'clOrdID': clOrdID
+            'clOrdID': clOrdID,
+            'execInst': 'ParticipateDoNotInitiate'
         }
         return self._curl_bitmex(api=endpoint, postdict=postdict, verb="POST")
 
@@ -140,6 +141,7 @@ class BitMEX(object):
         for order in orders:
             order['clOrdID'] = self.orderIDPrefix + base64.b64encode(uuid.uuid4().bytes).decode('utf-8').rstrip('=\n')
             order['symbol'] = self.symbol
+            order['execInst'] = 'ParticipateDoNotInitiate'
         return self._curl_bitmex(api='order/bulk', postdict={'orders': orders}, verb='POST')
 
     @authentication_required
